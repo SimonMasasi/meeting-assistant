@@ -1,0 +1,40 @@
+stages:
+  - build_yarn
+
+.print_versions: &print_versions
+  - rustc --version
+  - cargo --version
+  - cargo xwin --version
+  - node -v && npm -v
+  - echo $PATH && pwd
+  - npm run tauri info
+
+
+###
+### example by @nakedgremlin (https://github.com/tauri-apps/tauri/discussions/11256#discussioncomment-10909210)
+###  ♦️ yarn is used instead of npm
+###
+build windows installer:
+  image: ivangabriele/tauri:debian-bookworm-20
+  stage: build_yarn
+  before_script:
+    #- cd app # wherever your source is
+    - apt-get -y install nsis # This was needed to resolve a packaging issue
+    - apt-get -y install clang # Had to add to resolve a dialog issue on launch
+    - apt-get -y install lld llvm
+    - rustup target add x86_64-pc-windows-msvc # Install the 64-bit target
+    - cargo install --locked --quiet cargo-xwin # Install cargo-xwin
+    - yarn install --frozen-lockfile # Install app dependencies
+    - *print_versions
+  script:
+    - yarn build-windows # Build for Windows 64-bit target
+    # This is a shortcut command in my package.json that does the following:
+    # tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
+  artifacts:
+    paths: ["src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"]
+
+  only:
+    - staging
+    - master
+
+

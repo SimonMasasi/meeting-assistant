@@ -1,0 +1,51 @@
+{
+  "name": "tauri-react-template",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "build-windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc"
+  },
+  "dependencies": {
+    "@apollo/client": "^3.11.8",
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
+    "@fontsource/roboto": "^5.1.0",
+    "@material-ui/lab": "^4.0.0-alpha.61",
+    "@mui/icons-material": "^6.1.0",
+    "@mui/joy": "^5.0.0-beta.48",
+    "@mui/material": "^6.1.0",
+    "@mui/x-date-pickers": "^7.18.0",
+    "@tauri-apps/api": "^2.11.0",
+    "@types/node": "^22.5.5",
+    "@types/qs": "^6.9.16",
+    "axios": "^1.7.7",
+    "dayjs": "^1.11.13",
+    "graphql": "^16.9.0",
+    "jotai": "^2.10.0",
+    "nstall": "^0.2.0",
+    "qs": "^6.13.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.2.3",
+    "react-hook-form": "^7.53.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.26.2",
+    "secure-ls": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/react": "^18.3.7",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.11",
+    "typescript": "^5.2.2",
+    "vite": "^8.0.13"
+  }
+}
