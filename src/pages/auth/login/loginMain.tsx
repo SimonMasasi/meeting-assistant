@@ -17,17 +17,18 @@ export function LoginMain() {
   const navigation = useNavigate();
 
   const userLogin = async (userData: userInput) => {
+    console.log("User Data:", userData); // Log the user input data
     setLoading(true);
 
-    const results = await loginAsync(userData);
+    const results = await loginAsync();
 
-    if (results.status) {
-      toast.error(results.error);
+    if (results.success === false) {
+      toast.error(results.message);
       setLoading(false);
       return;
     }
 
-    toast.success("login success");
+    toast.success(results.message);
 
     setLoading(false);
 
