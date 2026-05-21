@@ -26,7 +26,7 @@ export function SideBar() {
             alt="main_logo"
           />
           <span className="ml-1 font-semibold transition-all duration-200 ease-nav-brand">
-            {import.meta.env.VITE_APP_TITLE}
+            {import.meta.env.VITE_APP_TITLE ?? "My App"}
           </span>
         </NavLink>
       </div>

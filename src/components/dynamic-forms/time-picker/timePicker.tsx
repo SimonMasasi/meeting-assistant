@@ -40,7 +40,6 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
   const [_, setDynamicFormHasErrors] = useAtom(dynamicFormHasErrorsAtom);
 
   const onChangedValue = (value: any) => {
-    console.log(value);
     const validationResults = validate(value, props.validations);
 
     const newErrors = newValidationErrors(
@@ -61,7 +60,7 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
         onChange={(event: any) =>
           onChangedValue(new Date(event?.$d).toLocaleTimeString("en-CA"))
         }
-        value={selectedValue ? dayjs(selectedValue) : null}
+        value={selectedValue ? dayjs(selectedValue, "HH:mm:ss") : null}
       />
 
       {hasErrors && (

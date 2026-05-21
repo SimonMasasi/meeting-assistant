@@ -18,19 +18,6 @@ export const smsFields: DynamicInterface[] = [
     ],
   },
   {
-    key: "lastf",
-    label: "what is Youre lastf",
-    type: FieldType.checkbox,
-    size: FieldSize.medium,
-    required: true,
-    validations: [
-      {
-        name: "required",
-        message: "this field is required",
-      },
-    ],
-  },
-  {
     key: "lastd",
     label: "what is Youre lastd",
     type: FieldType.input,
@@ -44,6 +31,26 @@ export const smsFields: DynamicInterface[] = [
         name: "minLength",
         message: "min Length of 6  Not reached",
         minLength: 6,
+      },
+    ],
+  },
+  {
+    key:"chosen",
+    label:"chose Fruits",
+    type: FieldType.normalSelect,
+    size: FieldSize.large,
+    multiple:true,
+    selectValues:[
+      {name:"Apple" , value:"apple"},
+      {name:"Banana" , value:"banana"},
+      {name:"Orange" , value:"orange"},
+    ],
+    selectLabel:"name",
+    selectKeyValue:"value",
+     validations: [
+      {
+        name: "required",
+        message: "this field is required",
       },
     ],
   },

@@ -21,7 +21,7 @@ export interface DynamicNormalSelect {
   validations?: FieldEros[];
   selectValues: any[];
   selectKeyValue?: string;
-  selectLabel?: String;
+  selectLabel?: string;
   multiple: boolean;
   defaultValues: any;
   registerFunction: UseFormRegister<FieldValues>;
@@ -81,14 +81,14 @@ export default function DynamicNormaSelect(props: DynamicNormalSelect) {
         })}
         multiple={props?.multiple}
         options={props.selectValues}
-        value={selectedValue ?? null}
-        defaultValue={selectedValue ?? null}
+        value={selectedValue ??  (props?.multiple ? [] : null)}
+        defaultValue={selectedValue ?? (props?.multiple ? [] : null)}
         onChange={(_, value) => onChangedValue(value)}
         getOptionLabel={(option) =>
-          props?.selectLabel ?? option?.name ?? "name"
+            option[props?.selectLabel ?? "name"]
         }
         getOptionKey={(option) =>
-          props?.selectKeyValue ?? option?.value ?? "value"
+          option[props?.selectKeyValue ?? "value"]
         }
         sx={{ width: "100%" }}
         renderInput={(params) => (

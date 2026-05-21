@@ -44,7 +44,7 @@ export const setDynamicFormErrors = (
   formFields: DynamicInterface[] = [],
   defaultValues: any
 ) => {
-  const errors: any = [];
+  const errors: { key: string; hasErrors: boolean }[] = [];
 
   if (!defaultValues) {
     return errors;
