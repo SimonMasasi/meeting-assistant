@@ -9,27 +9,36 @@ import MenuItem from "@mui/material/MenuItem";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Edit, Logout, Person } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 
 const AVATAR_SIZE = 36;
 
-const menuItems = [
-  { name: "Profile", icon: <Person fontSize="small" />, danger: false },
-  { name: "Change Password", icon: <Edit fontSize="small" />, danger: false },
-  { name: "Logout", icon: <Logout fontSize="small" />, danger: true },
-];
+
 
 export function ProfileBar() {
   const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(
     null
   );
 
+  const navigate = useNavigate();
+
+  const handleCloseUserMenu = () => {
+    setAnchorElUser(null);
+    navigate("/");
+  };
+
+  const menuItems = [
+  { name: "Profile", icon: <Person fontSize="small" />, danger: false , calBackFunction: () => {}},
+  { name: "Change Password", icon: <Edit fontSize="small" />, danger: false, calBackFunction: () => {} },
+  { name: "Logout", icon: <Logout fontSize="small" />, danger: true, calBackFunction: () => handleCloseUserMenu() },
+];
+
+
   const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElUser(event.currentTarget);
   };
 
-  const handleCloseUserMenu = () => {
-    setAnchorElUser(null);
-  };
+
 
   return (
     <Box sx={{ flexShrink: 0 }}>
@@ -79,7 +88,7 @@ export function ProfileBar() {
         {menuItems.map((item) => (
           <MenuItem
             key={item.name}
-            onClick={handleCloseUserMenu}
+            onClick={item.calBackFunction}
             sx={{ color: item.danger ? "error.main" : "text.primary", gap: 1 }}
           >
             <ListItemIcon sx={{ color: "inherit", minWidth: "auto" }}>

@@ -14,7 +14,20 @@ import {
 import { useAtom } from "jotai";
 import { newValidationErrors } from "@/utils/case-validators";
 import dayjs from "dayjs";
-import { FormHelperText } from "@mui/material";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+
+const fieldSx = {
+  width: "100%",
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "12px",
+    "&:hover fieldset": { borderColor: "#2663EB" },
+    "&.Mui-focused fieldset": {
+      borderColor: "#2663EB",
+      boxShadow: "0 0 0 3px rgba(38,99,235,0.12)",
+    },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#2663EB" },
+};
 
 export interface DynamicTimePickerProps {
   keyValue: string;
@@ -41,18 +54,14 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
 
   const onChangedValue = (value: any) => {
     const validationResults = validate(value, props.validations);
-
-    const newErrors = newValidationErrors(
-      formErrors,
-      props.keyValue,
-      validationResults
-    );
+    const newErrors = newValidationErrors(formErrors, props.keyValue, validationResults);
     setDynamicFormHasErrors(formHasErrors(newErrors));
     setFormErrors(newErrors);
     setErrors(validationResults);
     setSelectedValue(value);
     props.setValueFunction(props.keyValue, value);
   };
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <TimePicker
@@ -61,17 +70,23 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
           onChangedValue(new Date(event?.$d).toLocaleTimeString("en-CA"))
         }
         value={selectedValue ? dayjs(selectedValue, "HH:mm:ss") : null}
+        slotProps={{
+          textField: {
+            sx: fieldSx,
+            error: hasErrors,
+            required: props.required,
+            fullWidth: true,
+          },
+        }}
       />
-
       {hasErrors && (
-        <div>
-          {errors.map((error, key) => {
-            return (
-              <FormHelperText id={props.keyValue} key={key}>
-                <span className="text-red-600"> {error}</span>
-              </FormHelperText>
-            );
-          })}
+        <div className="mt-1.5 space-y-1">
+          {errors.map((error, key) => (
+            <div key={key} className="flex items-center gap-1.5 text-danger-500">
+              <ErrorOutlineIcon sx={{ fontSize: 14 }} />
+              <span className="text-xs font-medium">{error}</span>
+            </div>
+          ))}
         </div>
       )}
     </LocalizationProvider>

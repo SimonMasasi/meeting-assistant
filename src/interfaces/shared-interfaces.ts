@@ -30,6 +30,7 @@ export interface DataTableColumns {
   minWidth?: number;
   align?: "right" | "left";
   format?: (value: any) => any;
+  sortable?: boolean;
 }
 
 export interface DataTableActions {

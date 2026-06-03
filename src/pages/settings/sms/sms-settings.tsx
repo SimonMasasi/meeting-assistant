@@ -1,8 +1,7 @@
 import DataTable from "@/components/shared/tables/data-table-main";
 import { smsColumns, SmsData } from "./sms-types";
 import { DataTableActions } from "@/interfaces/shared-interfaces";
-import { Add, Delete, Edit } from "@mui/icons-material";
-import { Button } from "@mui/material";
+import { Delete, Edit } from "@mui/icons-material";
 import AppDialog from "@/components/shared/dialogs/app-dialog";
 import { useState } from "react";
 import { smsFields } from "./sms-fields";
@@ -92,13 +91,12 @@ export function SmsSettings() {
           />
         }
       />
-      <div className="flex justify-end my-2">
-        <Button variant="contained" onClick={() => editItemAdd({})}>
-          <Add className="mx-2" /> Add{" "}
-        </Button>
-      </div>
-
-      <DataTable rows={rows} columns={smsColumns} actions={actions} />
+      <DataTable
+        rows={rows}
+        columns={smsColumns}
+        actions={actions}
+        onAdd={() => editItemAdd({})}
+      />
     </div>
   );
 }

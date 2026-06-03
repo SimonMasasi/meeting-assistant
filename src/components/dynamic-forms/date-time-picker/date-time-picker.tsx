@@ -2,7 +2,6 @@ import { FieldEros } from "@/interfaces/shared-interfaces";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import * as React from 'react';
 import dayjs, { Dayjs } from 'dayjs';
-import Stack from '@mui/material/Stack';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
@@ -15,8 +14,20 @@ import {
 } from "@/utils/validators";
 import { useAtom } from "jotai";
 import { newValidationErrors } from "@/utils/case-validators";
-import { FormHelperText } from "@mui/material";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 
+const fieldSx = {
+  width: "100%",
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "12px",
+    "&:hover fieldset": { borderColor: "#2663EB" },
+    "&.Mui-focused fieldset": {
+      borderColor: "#3b82f6",
+      boxShadow: "0 0 0 3px rgba(59,130,246,0.12)",
+    },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#3b82f6" },
+};
 
 export interface DynamicDateTimePickerProps {
     keyValue: string;
@@ -45,7 +56,6 @@ export function DynamicDateTimePicker(props:DynamicDateTimePickerProps){
 
 
     const onChangedValue = (value: any) => {
-      console.log(value)
       const validationResults = validate(value, props.validations);
   
       const newErrors = newValidationErrors(
@@ -62,29 +72,32 @@ export function DynamicDateTimePicker(props:DynamicDateTimePickerProps){
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Stack spacing={2} sx={{ minWidth: 305 }}>
-        <DateTimePicker
-          className="intro-x"
-          label={props?.label ?? "Pick Time"}
-          value={value}
-          name={props.keyValue}
-          minDate={props.minDate ? dayjs(props.minDate) : undefined}
-          maxDate={props.maxDate ? dayjs(props.maxDate) : undefined}
-          onChange={(event: any) =>
-            onChangedValue(new Date(event?.$d).toISOString())
-          }
-        />
-
-      </Stack>
+      <DateTimePicker
+        className="intro-x"
+        label={props?.label ?? "Pick Time"}
+        value={value}
+        name={props.keyValue}
+        minDate={props.minDate ? dayjs(props.minDate) : undefined}
+        maxDate={props.maxDate ? dayjs(props.maxDate) : undefined}
+        onChange={(event: any) =>
+          onChangedValue(new Date(event?.$d).toISOString())
+        }
+        slotProps={{
+          textField: {
+            sx: fieldSx,
+            error: hasErrors,
+            required: props.required,
+          },
+        }}
+      />
       {hasErrors && (
-        <div>
-          {errors.map((error, key) => {
-            return (
-              <FormHelperText id={props.keyValue} key={key}>
-                <span className="text-red-600"> {error}</span>
-              </FormHelperText>
-            );
-          })}
+        <div className="mt-1.5 space-y-1">
+          {errors.map((error, key) => (
+            <div key={key} className="flex items-center gap-1.5 text-danger-500">
+              <ErrorOutlineIcon sx={{ fontSize: 14 }} />
+              <span className="text-xs font-medium">{error}</span>
+            </div>
+          ))}
         </div>
       )}
     </LocalizationProvider>

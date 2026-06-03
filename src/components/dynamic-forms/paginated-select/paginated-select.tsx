@@ -12,8 +12,21 @@ import {
   validate,
 } from "@/utils/validators";
 import { newValidationErrors } from "@/utils/case-validators";
-import { FormHelperText } from "@mui/material";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { DocumentNode } from "graphql";
+
+const fieldSx = {
+  width: "100%",
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "12px",
+    "&:hover fieldset": { borderColor: "#2663EB" },
+    "&.Mui-focused fieldset": {
+      borderColor: "#3b82f6",
+      boxShadow: "0 0 0 3px rgba(59,130,246,0.12)",
+    },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#3b82f6" },
+};
 
 export interface DynamicNormalSelect {
   keyValue: string;
@@ -46,16 +59,10 @@ export default function DynamicPaginatedSelect(props: DynamicNormalSelect) {
 
   const onChangedValue = (value: any) => {
     const validationResults = validate(value, props.validations);
-
-    const newErrors = newValidationErrors(
-      formErrors,
-      props.keyValue,
-      validationResults
-    );
+    const newErrors = newValidationErrors(formErrors, props.keyValue, validationResults);
     setDynamicFormHasErrors(formHasErrors(newErrors));
     setFormErrors(newErrors);
     setErrors(validationResults);
-
     setSelectedValue(value);
   };
 
@@ -71,9 +78,7 @@ export default function DynamicPaginatedSelect(props: DynamicNormalSelect) {
         className="intro-x"
         {...props.registerFunction(props.keyValue, {
           setValueAs(_) {
-            if (!selectedValue) {
-              return "";
-            }
+            if (!selectedValue) return "";
             if (Array.isArray(selectedValue)) {
               return selectedValue.map(
                 (value) => value[props?.selectKeyValue ?? "value"] ?? []
@@ -95,6 +100,17 @@ export default function DynamicPaginatedSelect(props: DynamicNormalSelect) {
           props?.selectKeyValue ?? option?.value ?? "value"
         }
         sx={{ width: "100%" }}
+        slotProps={{
+          chip: {
+            sx: {
+              borderRadius: "8px",
+              backgroundColor: "#ede9fe",
+              color: "#2663EB",
+              fontWeight: 500,
+              fontSize: "0.75rem",
+            },
+          },
+        }}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -102,20 +118,22 @@ export default function DynamicPaginatedSelect(props: DynamicNormalSelect) {
             name={props.keyValue}
             error={hasErrors}
             required={props.required}
+            sx={fieldSx}
           />
         )}
       />
       {hasErrors && (
-        <div>
-          {errors.map((error, key) => {
-            return (
-              <FormHelperText id={props.keyValue} key={key}>
-                <span className="text-red-600"> {error}</span>
-              </FormHelperText>
-            );
-          })}
+        <div className="mt-1.5 space-y-1">
+          {errors.map((error, key) => (
+            <div key={key} className="flex items-center gap-1.5 text-danger-500">
+              <ErrorOutlineIcon sx={{ fontSize: 14 }} />
+              <span className="text-xs font-medium">{error}</span>
+            </div>
+          ))}
         </div>
       )}
     </>
   );
 }
+
+

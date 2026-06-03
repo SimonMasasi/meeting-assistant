@@ -14,7 +14,20 @@ import {
 } from "@/utils/validators";
 import { useAtom } from "jotai";
 import { newValidationErrors } from "@/utils/case-validators";
-import { FormHelperText } from "@mui/material";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+
+const fieldSx = {
+  width: "100%",
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "12px",
+    "&:hover fieldset": { borderColor: "#2663EB" },
+    "&.Mui-focused fieldset": {
+      borderColor: "#3b82f6",
+      boxShadow: "0 0 0 3px rgba(59,130,246,0.12)",
+    },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#3b82f6" },
+};
 
 export interface DynamicDatePickerProps {
   keyValue: string;
@@ -72,26 +85,26 @@ export default function DynamicDatePicker(props: DynamicDatePickerProps) {
         slotProps={{
           field: {
             readOnly: true,
-            value:selectedValue ? dayjs(selectedValue) : null,
+            value: selectedValue ? dayjs(selectedValue) : null,
           },
           textField: {
             name: props.keyValue,
             error: hasErrors,
             id: props.keyValue,
-            required:props.required,
-            value:selectedValue ? dayjs(selectedValue) : null,
+            required: props.required,
+            value: selectedValue ? dayjs(selectedValue) : null,
+            sx: fieldSx,
           },
         }}
       />
       {hasErrors && (
-        <div>
-          {errors.map((error, key) => {
-            return (
-              <FormHelperText id={props.keyValue} key={key}>
-                <span className="text-red-600"> {error}</span>
-              </FormHelperText>
-            );
-          })}
+        <div className="mt-1.5 space-y-1">
+          {errors.map((error, key) => (
+            <div key={key} className="flex items-center gap-1.5 text-danger-500">
+              <ErrorOutlineIcon sx={{ fontSize: 14 }} />
+              <span className="text-xs font-medium">{error}</span>
+            </div>
+          ))}
         </div>
       )}
     </LocalizationProvider>
