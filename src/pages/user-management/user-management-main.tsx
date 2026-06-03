@@ -9,7 +9,7 @@ export function UserManagementMain() {
     <>
       {location.pathname.replace("main", "").replaceAll("/", "") ==
       "user-management" ? (
-        <CardLayout navs={userManagementNavs} />
+        <CardLayout cards={userManagementNavs} />
       ) : (
         <Outlet></Outlet>
       )}

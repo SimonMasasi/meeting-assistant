@@ -1,25 +1,21 @@
 import * as React from "react";
-import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
-import Menu from "@mui/material/Menu";
 import Avatar from "@mui/material/Avatar";
-import Tooltip from "@mui/material/Tooltip";
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import { Edit, Logout, Person } from "@mui/icons-material";
 
-const settingsMenu = [
-  {
-    name: "Profile",
-    icon: <Person />,
-  },
-  {
-    name: "Change Password",
-    icon: <Edit />,
-  },
-  {
-    name: "Logout",
-    icon: <Logout />,
-  },
+const AVATAR_SIZE = 36;
+
+const menuItems = [
+  { name: "Profile", icon: <Person fontSize="small" />, danger: false },
+  { name: "Change Password", icon: <Edit fontSize="small" />, danger: false },
+  { name: "Logout", icon: <Logout fontSize="small" />, danger: true },
 ];
 
 export function ProfileBar() {
@@ -36,35 +32,64 @@ export function ProfileBar() {
   };
 
   return (
-    <Box sx={{ flexGrow: 0 }}>
-      <Tooltip title="Profile">
-        <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-          <Avatar alt="Remy Sharp" src="/src/assets/images/profile.png" />
+    <Box sx={{ flexShrink: 0 }}>
+      <Tooltip title="Account">
+        <IconButton
+          onClick={handleOpenUserMenu}
+          aria-label="Open account menu"
+          aria-controls={anchorElUser ? "profile-menu" : undefined}
+          aria-haspopup="true"
+          aria-expanded={Boolean(anchorElUser)}
+          sx={{ p: 0.5 }}
+        >
+          <Avatar
+            alt="User profile"
+            src="/src/assets/images/profile.png"
+            sx={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+          />
         </IconButton>
       </Tooltip>
+
       <Menu
-        sx={{ mt: "45px" }}
-        id="menu-appbar"
+        id="profile-menu"
         anchorEl={anchorElUser}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        keepMounted
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
         open={Boolean(anchorElUser)}
         onClose={handleCloseUserMenu}
+        slotProps={{
+          paper: {
+            elevation: 3,
+            sx: { mt: 1, minWidth: 190, borderRadius: 2 },
+          },
+        }}
       >
-        {settingsMenu.map((setting, key) => (
-          <MenuItem key={key} onClick={handleCloseUserMenu}>
-            {setting.icon}
-            <span className="mx-2">{setting.name}</span>
+        {/* User info header */}
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="subtitle2" fontWeight={600} noWrap>
+            Welcome back
+          </Typography>
+          <Typography variant="caption" color="text.secondary" noWrap>
+            Administrator
+          </Typography>
+        </Box>
+
+        <Divider />
+
+        {menuItems.map((item) => (
+          <MenuItem
+            key={item.name}
+            onClick={handleCloseUserMenu}
+            sx={{ color: item.danger ? "error.main" : "text.primary", gap: 1 }}
+          >
+            <ListItemIcon sx={{ color: "inherit", minWidth: "auto" }}>
+              {item.icon}
+            </ListItemIcon>
+            <Typography variant="body2">{item.name}</Typography>
           </MenuItem>
         ))}
       </Menu>
     </Box>
   );
 }
+

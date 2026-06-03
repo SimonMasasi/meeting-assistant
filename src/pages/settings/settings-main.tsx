@@ -9,7 +9,7 @@ export function SettingsMain() {
     <>
       {location.pathname.replace("main", "").replaceAll("/", "") ==
       "settings" ? (
-        <CardLayout navs={settingsNavs} />
+        <CardLayout cards={settingsNavs} />
       ) : (
         <Outlet></Outlet>
       )}
