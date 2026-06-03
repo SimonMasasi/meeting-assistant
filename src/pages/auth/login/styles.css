@@ -1,0 +1,62 @@
+/* ============================================================
+   Login page – scoped styles
+   All classes are prefixed with .login- to prevent leakage
+   to other pages.
+   ============================================================ */
+
+/* 3D flip – perspective wrapper */
+.login-perspective {
+  perspective: 1200px;
+}
+
+/* 3D flip – rotating inner card */
+.login-flip-inner {
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
+  transform: rotateY(0deg);
+  position: relative;
+  min-height: 520px;
+}
+
+.login-flip-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+/* 3D flip – shared face styles */
+.login-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 3D flip – back face counter-rotation */
+.login-face--back {
+  transform: rotateY(180deg);
+}
+
+/* Loading spinner */
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: login-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes login-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* MUI icon sizes */
+.login-icon-xl {
+  font-size: 32px !important;
+}
+
+.login-icon-md {
+  font-size: 20px !important;
+}
+
+.login-icon-sm {
+  font-size: 18px !important;
+}

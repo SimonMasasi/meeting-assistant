@@ -2,10 +2,9 @@ import { createBrowserRouter } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import { settingsRoutes } from "./pages/settings/SettingsRoutes";
 import ErrorPage from "./components/layout/ErrorLayout";
-import { dashboardRoutes } from "./pages/dashboard/dashboardRoutes";
-import { LoginMain } from "./pages/auth/login/loginMain";
+import { LoginMain } from "./pages/auth/login/login-main";
 import { userManagementRoutes } from "./pages/user-management/UserManagementRoutes";
-import { authRoutes } from "./pages/auth/authRoutes";
+import { authRoutes } from "./pages/auth/auth-routes";
 
 
 export const baseRouter = createBrowserRouter([
@@ -15,7 +14,6 @@ export const baseRouter = createBrowserRouter([
         errorElement:<ErrorPage/>,
         children:[
             ...settingsRoutes,
-            ...dashboardRoutes,
             ...userManagementRoutes,
             ...authRoutes
         ]

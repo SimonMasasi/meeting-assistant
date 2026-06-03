@@ -1,6 +1,6 @@
 import { RouteInterface } from "../../interfaces/SharedInterfaces";
-import { AuthMain } from "./Authmain";
-import { LoginMain } from "./login/loginMain";
+import { AuthMain } from "./auth-main";
+import { LoginMain } from "./login/login-main";
 
 export const authRoutes: RouteInterface[] = [
   {
@@ -11,14 +11,7 @@ export const authRoutes: RouteInterface[] = [
         path: "login",
         element: <LoginMain />,
       },
-      {
-        path: "register",
-        element: <LoginMain />,
-      },
-      {
-        path: "signup",
-        element: <LoginMain />,
-      },
+
     ],
   },
-];
+]; 

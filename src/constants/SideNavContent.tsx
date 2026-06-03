@@ -1,12 +1,7 @@
-import { Dashboard, Person, Settings } from "@mui/icons-material"
+import { Person, Settings } from "@mui/icons-material"
 import { SideNavInterface } from "../interfaces/SharedInterfaces"
 
 export const sideNavContent:SideNavInterface[] = [
-    {
-        title: "Dashboard",
-        to:"dashboard",
-        icon: <Dashboard className="text-blue-500"/>
-    },
     {
         title: "Settings",
         to:"settings",
