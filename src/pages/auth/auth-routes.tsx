@@ -1,4 +1,4 @@
-import { RouteInterface } from "../../interfaces/SharedInterfaces";
+import { RouteInterface } from "../../interfaces/shared-interfaces";
 import { AuthMain } from "./auth-main";
 import { LoginMain } from "./login/login-main";
 

@@ -1,17 +1,17 @@
 import {
   DynamicInterface,
   FieldType,
-} from "@/interfaces/dynamicFormInterfaces";
+} from "@/interfaces/dynamic-form-interfaces";
 import { FormControl } from "@mui/material";
 import { DynamicInput } from "./input/input";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
-import DynamicNormaSelect from "./normal-select/normalSelect";
-import DynamicDatePicker from "./date-picker/datePicker";
-import { DynamicFileUpload } from "./file-upload/fileUpload";
-import { DynamicDateTimePicker } from "./date-time-picker/dateTimePicker";
-import DynamicCheckBox from "./check-box/checkBox";
-import DynamicTimePicker from "./time-picker/timePicker";
-import DynamicPaginatedSelect from "./paginated-select/paginatedSelect";
+import DynamicNormaSelect from "./normal-select/normal-select";
+import DynamicDatePicker from "./date-picker/date-picker";
+import { DynamicFileUpload } from "./file-upload/file-upload";
+import { DynamicDateTimePicker } from "./date-time-picker/date-time-picker";
+import DynamicCheckBox from "./check-box/check-box";
+import DynamicTimePicker from "./time-picker/time-picker";
+import DynamicPaginatedSelect from "./paginated-select/paginated-select";
 
 export interface DynamicFieldsProps {
   field: DynamicInterface;

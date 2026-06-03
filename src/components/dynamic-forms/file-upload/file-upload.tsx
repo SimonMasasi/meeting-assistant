@@ -1,9 +1,9 @@
-import { FieldEros } from "@/interfaces/SharedInterfaces";
+import { FieldEros } from "@/interfaces/shared-interfaces";
 import { useState } from "react";
 import { Accept, useDropzone } from "react-dropzone";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { useRef } from "react";
-import { checkIfFileIsImage, fileToBase64 } from "@/utils/helperFunctions";
+import { checkIfFileIsImage, fileToBase64 } from "@/utils/helper-functions";
 import { Close } from "@mui/icons-material";
 
 export interface DynamicFileProps {

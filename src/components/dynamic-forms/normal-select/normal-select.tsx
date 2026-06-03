@@ -1,6 +1,6 @@
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
-import { FieldEros } from "@/interfaces/SharedInterfaces";
+import { FieldEros } from "@/interfaces/shared-interfaces";
 import { FieldValues, UseFormRegister } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
@@ -11,7 +11,7 @@ import {
   formHasErrors,
   validate,
 } from "@/utils/validators";
-import { newValidationErrors } from "@/utils/caseValidators";
+import { newValidationErrors } from "@/utils/case-validators";
 import { FormHelperText } from "@mui/material";
 
 export interface DynamicNormalSelect {

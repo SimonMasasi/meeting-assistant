@@ -1,5 +1,5 @@
 import { Accept } from "react-dropzone";
-import { BaseDynamicInterface } from "./SharedInterfaces";
+import { BaseDynamicInterface } from "./shared-interfaces";
 import { DocumentNode } from "graphql";
 
 export interface DynamicFieldInput extends BaseDynamicInterface {

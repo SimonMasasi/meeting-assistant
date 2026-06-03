@@ -1,5 +1,5 @@
 import { Person, Settings } from "@mui/icons-material"
-import { SideNavInterface } from "../interfaces/SharedInterfaces"
+import { SideNavInterface } from "../interfaces/shared-interfaces"
 
 export const sideNavContent:SideNavInterface[] = [
     {

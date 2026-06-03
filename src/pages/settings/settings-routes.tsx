@@ -1,7 +1,7 @@
-import { RouteInterface } from "../../interfaces/SharedInterfaces";
-import { MailSettings } from "./mail/MailSettings";
-import { SettingsMain } from "./SettingsMain";
-import { SmsSettings } from "./sms/SmsSettings";
+import { RouteInterface } from "../../interfaces/shared-interfaces";
+import { MailSettings } from "./mail/mail-settings";
+import { SettingsMain } from "./settings-main";
+import { SmsSettings } from "./sms/sms-settings";
 
 export const settingsRoutes: RouteInterface[] = [
   {

@@ -1,6 +1,6 @@
 import { Sms } from "@mui/icons-material";
 import { Mail } from "@mui/icons-material";
-import { cardLayoutProps } from "../../interfaces/SharedInterfaces";
+import { cardLayoutProps } from "../../interfaces/shared-interfaces";
 
 export const settingsNavs:cardLayoutProps[] = [
     {

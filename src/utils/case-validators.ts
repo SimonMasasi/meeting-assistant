@@ -1,7 +1,7 @@
 import {
   FieldEros,
   ValidationResultsInterface,
-} from "@/interfaces/SharedInterfaces";
+} from "@/interfaces/shared-interfaces";
 import { CaseValidationInterface } from "./validators";
 
 export function caseValidation(error: FieldEros, value: any) {

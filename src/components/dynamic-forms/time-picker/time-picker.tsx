@@ -1,9 +1,9 @@
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Checkbox from "@mui/material/Checkbox";
-import { FieldEros } from "@/interfaces/SharedInterfaces";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
-import { newValidationErrors } from "@/utils/caseValidators";
-import { useAtom } from "jotai";
+import { FieldEros } from "@/interfaces/shared-interfaces";
+import { useState } from "react";
 import {
   CaseValidationInterface,
   dynamicAtom,
@@ -11,10 +11,12 @@ import {
   formHasErrors,
   validate,
 } from "@/utils/validators";
-import { useState } from "react";
+import { useAtom } from "jotai";
+import { newValidationErrors } from "@/utils/case-validators";
+import dayjs from "dayjs";
 import { FormHelperText } from "@mui/material";
 
-export interface DynamicCheckBox {
+export interface DynamicTimePickerProps {
   keyValue: string;
   label: string;
   required?: boolean;
@@ -24,9 +26,9 @@ export interface DynamicCheckBox {
   setValueFunction: UseFormSetValue<any>;
 }
 
-export default function DynamicCheckBox(props: DynamicCheckBox) {
-  const [selectedValue, setSelectedValue] = useState<boolean | null>(
-    props.defaultValues ? props.defaultValues[props.keyValue] : false
+export default function DynamicTimePicker(props: DynamicTimePickerProps) {
+  const [selectedValue, setSelectedValue] = useState<string | null>(
+    props.defaultValues ? props.defaultValues[props.keyValue] : null
   );
 
   const [{ errors, hasErrors }, setErrors] = useState<CaseValidationInterface>({
@@ -38,7 +40,7 @@ export default function DynamicCheckBox(props: DynamicCheckBox) {
   const [_, setDynamicFormHasErrors] = useAtom(dynamicFormHasErrorsAtom);
 
   const onChangedValue = (value: any) => {
-    const validationResults = validate(String(value), props.validations);
+    const validationResults = validate(value, props.validations);
 
     const newErrors = newValidationErrors(
       formErrors,
@@ -51,15 +53,14 @@ export default function DynamicCheckBox(props: DynamicCheckBox) {
     setSelectedValue(value);
     props.setValueFunction(props.keyValue, value);
   };
-
   return (
-    <div className="intro-x">
-      <FormControlLabel
-        required={props.required}
-        control={<Checkbox />}
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <TimePicker
         label={props.label}
-        onChange={(_: any, checked: boolean) => onChangedValue(checked)}
-        value={selectedValue}
+        onChange={(event: any) =>
+          onChangedValue(new Date(event?.$d).toLocaleTimeString("en-CA"))
+        }
+        value={selectedValue ? dayjs(selectedValue, "HH:mm:ss") : null}
       />
 
       {hasErrors && (
@@ -73,6 +74,6 @@ export default function DynamicCheckBox(props: DynamicCheckBox) {
           })}
         </div>
       )}
-    </div>
+    </LocalizationProvider>
   );
 }

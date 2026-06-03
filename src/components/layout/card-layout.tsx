@@ -1,5 +1,5 @@
 import { Dashboard }  from "@mui/icons-material";
-import { cardLayoutProps } from "../../interfaces/SharedInterfaces";
+import { cardLayoutProps } from "../../interfaces/shared-interfaces";
 import { NavLink } from "react-router-dom";
 
 type cardProps = {

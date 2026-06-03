@@ -1,15 +1,15 @@
-import DataTable from "@/components/shared/tables/DataTableMain";
-import { smsColumns, SmsData } from "./SmsTypes";
-import { DataTableActions } from "@/interfaces/SharedInterfaces";
+import DataTable from "@/components/shared/tables/data-table-main";
+import { smsColumns, SmsData } from "./sms-types";
+import { DataTableActions } from "@/interfaces/shared-interfaces";
 import { Add, Delete, Edit } from "@mui/icons-material";
 import { Button } from "@mui/material";
-import AppDialog from "@/components/shared/dialogs/appDialog";
+import AppDialog from "@/components/shared/dialogs/app-dialog";
 import { useState } from "react";
-import { smsFields } from "./smsFields";
-import { DynamicFormMain } from "@/components/dynamic-forms/DynamicFormMain";
+import { smsFields } from "./sms-fields";
+import { DynamicFormMain } from "@/components/dynamic-forms/dynamic-form-main";
 import toast from "react-hot-toast";
 import { useAtom } from "jotai";
-import { loadingAtom } from "@/atoms/sharedAtoms";
+import { loadingAtom } from "@/atoms/shared-atoms";
 
 const rows: SmsData[] = [
   {

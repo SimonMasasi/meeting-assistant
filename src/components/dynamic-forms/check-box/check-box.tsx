@@ -1,9 +1,9 @@
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { TimePicker } from "@mui/x-date-pickers/TimePicker";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Checkbox from "@mui/material/Checkbox";
+import { FieldEros } from "@/interfaces/shared-interfaces";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
-import { FieldEros } from "@/interfaces/SharedInterfaces";
-import { useState } from "react";
+import { newValidationErrors } from "@/utils/case-validators";
+import { useAtom } from "jotai";
 import {
   CaseValidationInterface,
   dynamicAtom,
@@ -11,12 +11,10 @@ import {
   formHasErrors,
   validate,
 } from "@/utils/validators";
-import { useAtom } from "jotai";
-import { newValidationErrors } from "@/utils/caseValidators";
-import dayjs from "dayjs";
+import { useState } from "react";
 import { FormHelperText } from "@mui/material";
 
-export interface DynamicTimePickerProps {
+export interface DynamicCheckBox {
   keyValue: string;
   label: string;
   required?: boolean;
@@ -26,9 +24,9 @@ export interface DynamicTimePickerProps {
   setValueFunction: UseFormSetValue<any>;
 }
 
-export default function DynamicTimePicker(props: DynamicTimePickerProps) {
-  const [selectedValue, setSelectedValue] = useState<string | null>(
-    props.defaultValues ? props.defaultValues[props.keyValue] : null
+export default function DynamicCheckBox(props: DynamicCheckBox) {
+  const [selectedValue, setSelectedValue] = useState<boolean | null>(
+    props.defaultValues ? props.defaultValues[props.keyValue] : false
   );
 
   const [{ errors, hasErrors }, setErrors] = useState<CaseValidationInterface>({
@@ -40,7 +38,7 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
   const [_, setDynamicFormHasErrors] = useAtom(dynamicFormHasErrorsAtom);
 
   const onChangedValue = (value: any) => {
-    const validationResults = validate(value, props.validations);
+    const validationResults = validate(String(value), props.validations);
 
     const newErrors = newValidationErrors(
       formErrors,
@@ -53,14 +51,15 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
     setSelectedValue(value);
     props.setValueFunction(props.keyValue, value);
   };
+
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <TimePicker
+    <div className="intro-x">
+      <FormControlLabel
+        required={props.required}
+        control={<Checkbox />}
         label={props.label}
-        onChange={(event: any) =>
-          onChangedValue(new Date(event?.$d).toLocaleTimeString("en-CA"))
-        }
-        value={selectedValue ? dayjs(selectedValue, "HH:mm:ss") : null}
+        onChange={(_: any, checked: boolean) => onChangedValue(checked)}
+        value={selectedValue}
       />
 
       {hasErrors && (
@@ -74,6 +73,6 @@ export default function DynamicTimePicker(props: DynamicTimePickerProps) {
           })}
         </div>
       )}
-    </LocalizationProvider>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { FieldEros } from "@/interfaces/SharedInterfaces";
+import { FieldEros } from "@/interfaces/shared-interfaces";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import dayjs from "dayjs";
 import { useState } from "react";
@@ -13,7 +13,7 @@ import {
   validate,
 } from "@/utils/validators";
 import { useAtom } from "jotai";
-import { newValidationErrors } from "@/utils/caseValidators";
+import { newValidationErrors } from "@/utils/case-validators";
 import { FormHelperText } from "@mui/material";
 
 export interface DynamicDatePickerProps {

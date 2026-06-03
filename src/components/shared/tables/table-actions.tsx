@@ -3,7 +3,7 @@ import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import { DataTableActions } from "@/interfaces/SharedInterfaces";
+import { DataTableActions } from "@/interfaces/shared-interfaces";
 
 type TableActionsProps = {
   actions: DataTableActions[];

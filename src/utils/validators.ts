@@ -1,7 +1,7 @@
-import { DynamicInterface } from "@/interfaces/dynamicFormInterfaces";
-import { caseValidation } from "./caseValidators";
+import { DynamicInterface } from "@/interfaces/dynamic-form-interfaces";
+import { caseValidation } from "./case-validators";
 import { atom } from "jotai";
-import { FieldEros } from "@/interfaces/SharedInterfaces";
+import { FieldEros } from "@/interfaces/shared-interfaces";
 
 export interface CaseValidationInterface {
   errors: String[];

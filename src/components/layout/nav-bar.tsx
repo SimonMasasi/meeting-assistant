@@ -1,7 +1,7 @@
-import { showSideBar } from "@/atoms/sharedAtoms";
+import { showSideBar } from "@/atoms/shared-atoms";
 import { useAtom } from "jotai";
 import { useLocation } from "react-router-dom";
-import { ProfileBar } from "./profileBar";
+import { ProfileBar } from "./profile-bar";
 
 export function Navbar() {
   const location = useLocation();

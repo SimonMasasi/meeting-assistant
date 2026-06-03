@@ -1,7 +1,7 @@
-import { RouteInterface } from "../../interfaces/SharedInterfaces";
-import { OfflineUsers } from "./offline-users/OfflineUsersMain";
-import { UsersList } from "./user-list/userListMain";
-import { UserManagementMain } from "./UserManagementMain";
+import { RouteInterface } from "../../interfaces/shared-interfaces";
+import { OfflineUsers } from "./offline-users/offline-users-main";
+import { UsersList } from "./user-list/user-list-main";
+import { UserManagementMain } from "./user-management-main";
 
 export const userManagementRoutes: RouteInterface[] = [
   {

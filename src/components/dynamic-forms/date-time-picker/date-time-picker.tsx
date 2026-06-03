@@ -1,4 +1,4 @@
-import { FieldEros } from "@/interfaces/SharedInterfaces";
+import { FieldEros } from "@/interfaces/shared-interfaces";
 import { FieldValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import * as React from 'react';
 import dayjs, { Dayjs } from 'dayjs';
@@ -14,7 +14,7 @@ import {
   validate,
 } from "@/utils/validators";
 import { useAtom } from "jotai";
-import { newValidationErrors } from "@/utils/caseValidators";
+import { newValidationErrors } from "@/utils/case-validators";
 import { FormHelperText } from "@mui/material";
 
 

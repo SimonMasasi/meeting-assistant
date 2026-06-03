@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { sideNavContent } from "../../constants/SideNavContent";
+import { sideNavContent } from "../../constants/side-nav-content";
 import { useAtom } from "jotai";
-import { showSideBar } from "@/atoms/sharedAtoms";
+import { showSideBar } from "@/atoms/shared-atoms";
 
 export function SideBar() {
   const [sideBar, setSideBar] = useAtom(showSideBar);

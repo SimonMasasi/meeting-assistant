@@ -1,7 +1,7 @@
 import Backdrop from '@mui/material/Backdrop';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useAtom } from 'jotai';
-import { loadingAtom } from '@/atoms/sharedAtoms';
+import { loadingAtom } from '@/atoms/shared-atoms';
 
 export interface GlobalLoaderProps{
 

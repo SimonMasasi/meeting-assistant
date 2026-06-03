@@ -1,8 +1,8 @@
 import {
   DynamicInterface,
   FieldType,
-} from "@/interfaces/dynamicFormInterfaces";
-import { FieldSize } from "@/interfaces/SharedInterfaces";
+} from "@/interfaces/dynamic-form-interfaces";
+import { FieldSize } from "@/interfaces/shared-interfaces";
 
 export const smsFields: DynamicInterface[] = [
   {

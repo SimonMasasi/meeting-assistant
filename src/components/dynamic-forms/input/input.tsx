@@ -1,5 +1,5 @@
-import { FieldEros } from "@/interfaces/SharedInterfaces";
-import { newValidationErrors } from "@/utils/caseValidators";
+import { FieldEros } from "@/interfaces/shared-interfaces";
+import { newValidationErrors } from "@/utils/case-validators";
 import {
   CaseValidationInterface,
   dynamicAtom,

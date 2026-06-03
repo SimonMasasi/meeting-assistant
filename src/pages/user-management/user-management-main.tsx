@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom";
-import { CardLayout } from "../../components/layout/CardLayout";
-import { userManagementNavs } from "./UserManagementNavs";
+import { CardLayout } from "../../components/layout/card-layout";
+import { userManagementNavs } from "./user-management-navs";
 
 export function UserManagementMain() {
   const location = useLocation();

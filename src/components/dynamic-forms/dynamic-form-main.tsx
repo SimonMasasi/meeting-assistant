@@ -1,6 +1,6 @@
 import { Button } from "@mui/material";
-import { DynamicInterface } from "@/interfaces/dynamicFormInterfaces";
-import { DynamicFields } from "./DynamicField";
+import { DynamicInterface } from "@/interfaces/dynamic-form-interfaces";
+import { DynamicFields } from "./dynamic-field";
 import { useForm } from "react-hook-form";
 import { useAtom } from "jotai";
 import {

@@ -1,4 +1,4 @@
-import { DataTableColumns } from "@/interfaces/SharedInterfaces";
+import { DataTableColumns } from "@/interfaces/shared-interfaces";
 
 export interface OfflineUser {
   uniqueId: string;

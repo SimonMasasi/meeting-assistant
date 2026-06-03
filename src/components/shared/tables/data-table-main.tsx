@@ -10,13 +10,13 @@ import TableRow from "@mui/material/TableRow";
 import {
   DataTableActions,
   DataTableColumns,
-} from "@/interfaces/SharedInterfaces";
-import TableActions from "./TableActions";
-import { accessObject } from "@/utils/helperFunctions";
+} from "@/interfaces/shared-interfaces";
+import TableActions from "./table-actions";
+import { accessObject } from "@/utils/helper-functions";
 import { useAtom } from "jotai";
-import { tableLoadingAtom } from "@/atoms/sharedAtoms";
+import { tableLoadingAtom } from "@/atoms/shared-atoms";
 import CircularProgress from "@mui/joy/CircularProgress";
-import DataTableSearch from "./tableInputSearch";
+import DataTableSearch from "./table-input-search";
 
 export interface DataTablePropsInterface {
   columns: DataTableColumns[];

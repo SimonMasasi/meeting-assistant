@@ -1,5 +1,5 @@
 import axios from "axios";
-import { OfflineUser } from "./offlineUsersTypes";
+import { OfflineUser } from "./offline-users-types";
 
 export const getOfflineUsers = async (): Promise<OfflineUser[]> => {
 

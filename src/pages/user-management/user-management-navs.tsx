@@ -1,4 +1,4 @@
-import { cardLayoutProps } from "@/interfaces/SharedInterfaces";
+import { cardLayoutProps } from "@/interfaces/shared-interfaces";
 import { Person } from "@mui/icons-material";
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 

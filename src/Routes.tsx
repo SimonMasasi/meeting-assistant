@@ -1,9 +1,9 @@
 import { createBrowserRouter } from "react-router-dom";
-import { MainLayout } from "./components/layout/MainLayout";
-import { settingsRoutes } from "./pages/settings/SettingsRoutes";
-import ErrorPage from "./components/layout/ErrorLayout";
+import { MainLayout } from "./components/layout/main-layout";
+import { settingsRoutes } from "./pages/settings/settings-routes";
+import ErrorPage from "./components/layout/error-layout";
 import { LoginMain } from "./pages/auth/login/login-main";
-import { userManagementRoutes } from "./pages/user-management/UserManagementRoutes";
+import { userManagementRoutes } from "./pages/user-management/user-management-routes";
 import { authRoutes } from "./pages/auth/auth-routes";
 
 
