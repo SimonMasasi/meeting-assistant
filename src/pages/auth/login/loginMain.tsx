@@ -1,194 +1,82 @@
-import { useForm } from "react-hook-form";
-import { loginAsync } from "./loginHelper";
-import { userInput } from "./loginInterfaces";
-import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import GoogleIcon from '@mui/icons-material/Google';
+import AppleIcon from '@mui/icons-material/Apple';
+import EmailIcon from '@mui/icons-material/Email';
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import emblem from '../../../assets/images/meeting.webp';
 
 export function LoginMain() {
-  const { register, handleSubmit } = useForm<userInput>({
-    defaultValues: {
-      username: "",
-      password: "",
-    },
-  });
-
-  const [isLoading, setLoading] = useState(false);
-  const navigation = useNavigate();
-
-  const userLogin = async (userData: userInput) => {
-    console.log("User Data:", userData); // Log the user input data
-    setLoading(true);
-
-    const results = await loginAsync();
-
-    if (results.success === false) {
-      toast.error(results.message);
-      setLoading(false);
-      return;
-    }
-
-    toast.success(results.message);
-
-    setLoading(false);
-
-    navigation("/main/dashboard");
-  };
-
   return (
-    <>
-      <div className="bg-gray-50 font-[sans-serif]">
-        <div className="min-h-screen flex flex-col items-center justify-center py-6 px-4">
-          <div className="max-w-md w-full">
-            <img
-              src="src/assets/images/file.png"
-              alt="logo"
-              className="w-30 h-20 mb-8 mx-auto block"
-            />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-3xl shadow-xl px-8 py-10">
 
-            <div className="p-8 rounded-2xl bg-white shadow">
-              <h2 className="text-gray-800 text-center text-2xl font-bold">
-                Sign in
-              </h2>
-              <form
-                className="mt-8 space-y-4"
-                onSubmit={handleSubmit(userLogin)}
-              >
-                <div>
-                  <label className="text-gray-800 text-sm mb-2 block">
-                    User name
-                  </label>
-                  <div className="relative flex items-center">
-                    <input
-                      {...register("username")}
-                      name="username"
-                      type="text"
-                      required
-                      className="w-full text-gray-800 text-sm border border-gray-300 px-4 py-3 rounded-md outline-blue-600"
-                      placeholder="Enter user name"
-                    />
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="#bbb"
-                      stroke="#bbb"
-                      className="w-4 h-4 absolute right-4"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        cx="10"
-                        cy="7"
-                        r="6"
-                        data-original="#000000"
-                      ></circle>
-                      <path
-                        d="M14 15H6a5 5 0 0 0-5 5 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 5 5 0 0 0-5-5zm8-4h-2.59l.3-.29a1 1 0 0 0-1.42-1.42l-2 2a1 1 0 0 0 0 1.42l2 2a1 1 0 0 0 1.42 0 1 1 0 0 0 0-1.42l-.3-.29H22a1 1 0 0 0 0-2z"
-                        data-original="#000000"
-                      ></path>
-                    </svg>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-gray-800 text-sm mb-2 block">
-                    Password
-                  </label>
-                  <div className="relative flex items-center">
-                    <input
-                      {...register("password")}
-                      name="password"
-                      type="password"
-                      required
-                      className="w-full text-gray-800 text-sm border border-gray-300 px-4 py-3 rounded-md outline-blue-600"
-                      placeholder="Enter password"
-                    />
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="#bbb"
-                      stroke="#bbb"
-                      className="w-4 h-4 absolute right-4 cursor-pointer"
-                      viewBox="0 0 128 128"
-                    >
-                      <path
-                        d="M64 104C22.127 104 1.367 67.496.504 65.943a4 4 0 0 1 0-3.887C1.367 60.504 22.127 24 64 24s62.633 36.504 63.496 38.057a4 4 0 0 1 0 3.887C126.633 67.496 105.873 104 64 104zM8.707 63.994C13.465 71.205 32.146 96 64 96c31.955 0 50.553-24.775 55.293-31.994C114.535 56.795 95.854 32 64 32 32.045 32 13.447 56.775 8.707 63.994zM64 88c-13.234 0-24-10.766-24-24s10.766-24 24-24 24 10.766 24 24-10.766 24-24 24zm0-40c-8.822 0-16 7.178-16 16s7.178 16 16 16 16-7.178 16-16-7.178-16-16-16z"
-                        data-original="#000000"
-                      ></path>
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center">
-                    <input
-                      id="remember-me"
-                      name="remember-me"
-                      type="checkbox"
-                      className="h-4 w-4 shrink-0 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label
-                      htmlFor="remember-me"
-                      className="ml-3 block text-sm text-gray-800"
-                    >
-                      Remember me
-                    </label>
-                  </div>
-                  <div className="text-sm">
-                    <a
-                      href="#"
-                      className="text-blue-600 hover:underline font-semibold"
-                    >
-                      Forgot your password?
-                    </a>
-                  </div>
-                </div>
-
-                <div className="!mt-8">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 px-4 text-sm tracking-wide rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none flex items-center justify-center"
-                  >
-                    {isLoading ? (
-                      <>
-                        <svg
-                          className="animate-spin h-5 w-5 mr-3"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        Processing...
-                      </>
-                    ) : (
-                      "Sign in"
-                    )}
-                  </button>
-                </div>
-                <p className="text-gray-800 text-sm !mt-8 text-center">
-                  Don't have an account?{" "}
-                  <a
-                    href="#"
-                    className="text-blue-600 hover:underline ml-1 whitespace-nowrap font-semibold"
-                  >
-                    Register here
-                  </a>
-                </p>
-              </form>
-            </div>
+          {/* Logo */}
+          <div className="flex justify-center mb-5">
+            <img src={emblem} alt="Meeting Assistant" className="h-14 w-14 object-contain" />
           </div>
+
+          {/* Heading */}
+          <h1 className="text-2xl font-bold text-gray-900 text-center">Welcome back</h1>
+          <p className="text-sm text-gray-500 text-center mt-1 mb-8">
+            Sign in to your account or create a new one
+          </p>
+
+          {/* Auth Buttons */}
+          <div className="space-y-3">
+            {/* Google */}
+            <button
+              type="button"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-100 text-gray-700 text-sm font-medium transition-colors shadow-sm"
+            >
+              <GoogleIcon className="text-red-500" style={{ fontSize: 20 }} />
+              Continue with Google
+            </button>
+
+            {/* Apple */}
+            <button
+              type="button"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium transition-colors"
+            >
+              <AppleIcon style={{ fontSize: 20 }} />
+              Continue with Apple
+            </button>
+
+            {/* Email */}
+            <button
+              type="button"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-blue-400 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+            >
+              <EmailIcon style={{ fontSize: 20 }} />
+              Continue with Email
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-4 my-6">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-medium tracking-widest uppercase">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          {/* Guest */}
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-xl bg-white hover:bg-gray-100 text-gray-600 text-sm font-medium transition-colors"
+          >
+            <AccountCircleOutlinedIcon style={{ fontSize: 20 }} />
+            Continue Without Account
+          </button>
+
+          {/* Footer */}
+          <p className="text-xs text-gray-400 text-center mt-6">
+            By continuing, you agree to our{' '}
+            <a href="#" className="text-blue-500 hover:underline">Terms of Service</a>
+            {' '}and{' '}
+            <a href="#" className="text-blue-500 hover:underline">Privacy Policy</a>
+          </p>
+
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ export const smsFields: DynamicInterface[] = [
   {
     key: "name",
     label: "chose Date",
-    type: FieldType.timePicker,
+    type: FieldType.dateTimePicker,
     size: FieldSize.large,
     validations: [
       {

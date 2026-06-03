@@ -73,7 +73,7 @@ export function DynamicFileUpload(props: DynamicFileProps) {
   };
 
   return (
-    <section className="my-2 border-dashed border-2  border-gray-600 intro-x">
+    <section className="my-2 border-dashed border-2 border-gray-600 intro-x">
       <div className="flex justify-center h-14">
         <div className="w-full text-center">
           <div {...getRootProps({ className: "cursor-pointer w-full hover:text-blue-500" })}>
