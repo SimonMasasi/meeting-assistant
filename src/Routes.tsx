@@ -5,6 +5,7 @@ import ErrorPage from "./components/layout/error-layout";
 import { LoginMain } from "./pages/auth/login/login-main";
 import { userManagementRoutes } from "./pages/user-management/user-management-routes";
 import { authRoutes } from "./pages/auth/auth-routes";
+import { dashboardRoutes } from "./pages/dashboard/dashboard-routes";
 
 
 export const baseRouter = createBrowserRouter([
@@ -15,11 +16,12 @@ export const baseRouter = createBrowserRouter([
         children:[
             ...settingsRoutes,
             ...userManagementRoutes,
-            ...authRoutes
+            ...authRoutes,
+            ...dashboardRoutes
         ]
     },
     {
         path: "",
         element:<LoginMain/>,
-    },
+    }
 ])

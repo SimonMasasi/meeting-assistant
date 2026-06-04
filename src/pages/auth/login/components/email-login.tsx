@@ -67,7 +67,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
     setIsLoading(true);
     // Simulate authentication — replace with real API call
     setTimeout(() => {
-      navigate('main/settings');
+      navigate('main/dashboard');
     }, 1800);
   };
 
