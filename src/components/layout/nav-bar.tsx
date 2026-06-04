@@ -16,7 +16,7 @@ export function Navbar() {
   return (
     <nav
       aria-label="Top navigation"
-      className="relative flex flex-wrap items-center justify-between px-0 py-2 mx-6 transition-all ease-in shadow-none duration-250 rounded-2xl lg:flex-nowrap lg:justify-start"
+      className="sticky top-0 z-10 flex flex-wrap items-center justify-between px-0 py-2 mx-6 transition-all ease-in shadow-none duration-250 rounded-2xl lg:flex-nowrap lg:justify-start bg-gray-50"
     >
       <div className="flex items-center justify-between w-full px-4 py-1 mx-auto flex-wrap-inherit">
         {/* Breadcrumb */}

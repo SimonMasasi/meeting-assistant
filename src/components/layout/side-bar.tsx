@@ -3,6 +3,7 @@ import { useAtom } from "jotai";
 import { NavLink } from "react-router-dom";
 import { showSideBar } from "@/atoms/shared-atoms";
 import { sideNavContent } from "../../constants/side-nav-content";
+import emblem from "../../assets/images/meeting.webp"
 
 export function SideBar() {
   const [sideBar, setSideBar] = useAtom(showSideBar);
@@ -30,7 +31,7 @@ export function SideBar() {
           to="/dashboard"
         >
           <img
-            src="/src/assets/images/file.png"
+            src={emblem}
             className="inline h-full max-w-full transition-all duration-200 max-h-8"
             alt="main_logo"
           />
