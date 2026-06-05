@@ -6,6 +6,7 @@ import { LoginMain } from "./pages/auth/login/login-main";
 import { userManagementRoutes } from "./pages/user-management/user-management-routes";
 import { authRoutes } from "./pages/auth/auth-routes";
 import { dashboardRoutes } from "./pages/dashboard/dashboard-routes";
+import { meetingsRoutes } from "./pages/meetings/meetings-routes";
 
 
 export const baseRouter = createBrowserRouter([
@@ -17,7 +18,8 @@ export const baseRouter = createBrowserRouter([
             ...settingsRoutes,
             ...userManagementRoutes,
             ...authRoutes,
-            ...dashboardRoutes
+            ...dashboardRoutes,
+            ...meetingsRoutes
         ]
     },
     {
