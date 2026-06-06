@@ -4,6 +4,13 @@ export interface ActionItem {
   done: boolean;
 }
 
+export interface MeetingAttachment {
+  id: string;
+  fileName: string;
+  path: string;
+  size: number;
+}
+
 export interface TranscriptLine {
   id: string;
   speaker: string;
@@ -31,6 +38,7 @@ export interface MeetingDetail {
   keyPoints: string[];
   actionItems: ActionItem[];
   transcript: TranscriptLine[];
+  attachments?: MeetingAttachment[];
 }
 
 const AVATAR_COLORS = [

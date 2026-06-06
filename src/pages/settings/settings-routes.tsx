@@ -1,7 +1,7 @@
 import { RouteInterface } from "../../interfaces/shared-interfaces";
 import { MailSettings } from "./mail/mail-settings";
 import { SettingsMain } from "./settings-main";
-import { SmsSettings } from "./sms/sms-settings";
+import { StorageSettings } from "./storage/storage-settings";
 
 export const settingsRoutes: RouteInterface[] = [
   {
@@ -13,8 +13,8 @@ export const settingsRoutes: RouteInterface[] = [
         element: <MailSettings/>,
       },
       {
-        path: "sms",
-        element: <SmsSettings/>,
+        path: "storage",
+        element: <StorageSettings/>,
       },
     ],
   },

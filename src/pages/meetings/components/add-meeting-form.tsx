@@ -5,6 +5,7 @@ import {
 } from "@/interfaces/dynamic-form-interfaces";
 import { FieldSize } from "@/interfaces/shared-interfaces";
 import { MeetingDetail } from "../mock-data";
+import { saveMeetingAttachment } from "@/services/attachments";
 
 interface AddMeetingFormProps {
   onCreate: (meeting: MeetingDetail) => void;
@@ -65,6 +66,14 @@ const formFields: DynamicInterface[] = [
     required: false,
     size: FieldSize.large,
   },
+  {
+    key: "attachments",
+    label: "Attachments",
+    type: FieldType.file,
+    required: false,
+    size: FieldSize.large,
+    multiple: true,
+  },
 ];
 
 const defaultValues = {
@@ -76,9 +85,27 @@ const defaultValues = {
 };
 
 export function AddMeetingForm({ onCreate }: AddMeetingFormProps) {
-  const handleSubmit = (data: any) => {
+  const handleSubmit = async (data: any) => {
+    const id = `mtg-${Date.now()}`;
+
+    // Persist any dropped files to the Rust backend (app-data, per meeting).
+    // Each entry from DynamicFileUpload is { fileName, dataBinary, originalSource }.
+    const droppedFiles: any[] = Array.isArray(data.attachments)
+      ? data.attachments
+      : [];
+    let attachments: MeetingDetail["attachments"] = [];
+    try {
+      attachments = await Promise.all(
+        droppedFiles
+          .filter((f) => f?.dataBinary)
+          .map((f) => saveMeetingAttachment(id, f.fileName, f.dataBinary))
+      );
+    } catch (err) {
+      console.error("Failed to save meeting attachments", err);
+    }
+
     const meeting: MeetingDetail = {
-      id: `mtg-${Date.now()}`,
+      id,
       title: data.title?.trim() || "Untitled Meeting",
       host: data.host?.trim() || "Unknown",
       date: new Date().toLocaleDateString("en-US", {
@@ -101,6 +128,7 @@ export function AddMeetingForm({ onCreate }: AddMeetingFormProps) {
       keyPoints: [],
       actionItems: [],
       transcript: [],
+      attachments,
     };
     onCreate(meeting);
   };
