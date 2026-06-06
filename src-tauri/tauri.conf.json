@@ -20,7 +20,11 @@
   "mainBinaryName": "tauri-app",
   "version": "0.1.0",
   "identifier": "com.tauri-react-template.app",
-  "plugins": {},
+  "plugins": {
+    "sql": {
+      "preload": ["sqlite:meeting_assistant.db"]
+    }
+  },
   "app": {
     "security": {
       "csp": null

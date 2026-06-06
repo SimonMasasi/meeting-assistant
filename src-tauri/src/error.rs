@@ -25,6 +25,9 @@ pub enum Error {
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
 
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+
     /// Domain errors that don't originate from an underlying library error,
     /// e.g. validation failures.
     #[error("{0}")]

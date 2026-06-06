@@ -4,6 +4,7 @@
 //! than in `main.rs`) lets the same logic drive both desktop and mobile targets.
 
 mod commands;
+mod db;
 mod error;
 mod settings;
 
@@ -11,6 +12,11 @@ mod settings;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations(db::DB_URL, db::migrations())
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             commands::greet::greet,
             commands::attachments::save_meeting_attachment,
