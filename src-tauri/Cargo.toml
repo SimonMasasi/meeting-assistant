@@ -26,6 +26,15 @@ thiserror = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+cpal = "0.15"
+hound = "3.5"
+
+# macOS microphone authorization (TCC) is queried via AVFoundation's
+# AVCaptureDevice, reached through these objc bindings.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-foundation = { version = "0.2", features = ["NSString"] }
+block2 = "0.5"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

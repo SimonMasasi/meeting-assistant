@@ -8,6 +8,7 @@ import { MeetingHeader } from "./components/meeting-header";
 import { NotesKeyPoints } from "./components/notes-key-points";
 import { MeetingObjective } from "./components/meeting-objective";
 import { TranscriptPanel } from "./components/transcript-panel";
+import { RecordingPanel } from "./components/recording-panel";
 
 export function MeetingDetailPage() {
   const { id } = useParams();
@@ -52,8 +53,9 @@ export function MeetingDetailPage() {
           <NotesKeyPoints meeting={meeting} />
         </div>
 
-        {/* Right: notes objective + transcript */}
+        {/* Right: live recording + notes objective + transcript */}
         <div className="xl:col-span-1 space-y-6">
+          <RecordingPanel meeting={meeting} />
           <MeetingObjective meeting={meeting} />
           <TranscriptPanel meeting={meeting} />
         </div>

@@ -18,10 +18,11 @@ pub const DB_URL: &str = "sqlite:meeting_assistant.db";
 /// Schema migrations, registered with the plugin builder in `lib.rs`. The plugin
 /// runs any not-yet-applied migration when the database is preloaded at startup.
 pub fn migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create_core_tables",
-        sql: "
+    vec![
+        Migration {
+            version: 1,
+            description: "create_core_tables",
+            sql: "
             CREATE TABLE settings (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -47,8 +48,23 @@ pub fn migrations() -> Vec<Migration> {
                 size       INTEGER NOT NULL
             );
         ",
-        kind: MigrationKind::Up,
-    }]
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "create_recordings_table",
+            sql: "
+            CREATE TABLE recordings (
+                id         TEXT PRIMARY KEY,
+                meeting_id TEXT    NOT NULL,
+                file_name  TEXT    NOT NULL,
+                path       TEXT    NOT NULL,
+                size       INTEGER NOT NULL
+            );
+        ",
+            kind: MigrationKind::Up,
+        },
+    ]
 }
 
 /// Borrow the preloaded SQLite pool from the plugin's managed state. The returned

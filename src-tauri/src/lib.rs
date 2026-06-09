@@ -17,6 +17,7 @@ pub fn run() {
                 .add_migrations(db::DB_URL, db::migrations())
                 .build(),
         )
+        .manage(commands::microphone::RecordingState::default())
         .invoke_handler(tauri::generate_handler![
             commands::greet::greet,
             commands::attachments::save_meeting_attachment,
@@ -24,6 +25,11 @@ pub fn run() {
             commands::storage::set_storage_dir,
             commands::mail::get_mail_settings,
             commands::mail::set_mail_settings,
+            commands::microphone::start_recording,
+            commands::microphone::stop_recording,
+            commands::microphone::is_recording,
+            commands::mic_permission::check_microphone_permission,
+            commands::mic_permission::request_microphone_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

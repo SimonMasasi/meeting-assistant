@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Shown in the macOS permission prompt the first time we open the mic to
+         record an in-person meeting. Required for microphone (TCC) access. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Meeting Assistant records audio of your in-person meetings so they can be transcribed and summarized.</string>
+</dict>
+</plist>

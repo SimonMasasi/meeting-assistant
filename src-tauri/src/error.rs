@@ -28,6 +28,9 @@ pub enum Error {
     #[error(transparent)]
     Sqlx(#[from] sqlx::Error),
 
+    #[error(transparent)]
+    Wav(#[from] hound::Error),
+
     /// Domain errors that don't originate from an underlying library error,
     /// e.g. validation failures.
     #[error("{0}")]
