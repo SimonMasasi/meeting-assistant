@@ -19,7 +19,7 @@
   "productName": "tauri-app",
   "mainBinaryName": "tauri-app",
   "version": "0.1.0",
-  "identifier": "com.tauri-react-template.app",
+  "identifier": "com.meeting-assistant.app",
   "plugins": {
     "sql": {
       "preload": ["sqlite:meeting_assistant.db"]

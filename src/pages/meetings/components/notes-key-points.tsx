@@ -27,27 +27,29 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Summary + key points */}
-        <div className="lg:col-span-3 relative bg-white rounded-2xl shadow-lg p-5 overflow-hidden">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-800">Summary</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
-              {meeting.summary}
-            </p>
-          </div>
+        <div className="lg:col-span-3 relative bg-white rounded-2xl shadow-lg p-5 flex flex-col overflow-hidden max-h-[70vh]">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">Summary</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+                {meeting.summary}
+              </p>
+            </div>
 
-          <div className="mt-5">
-            <h3 className="text-sm font-semibold text-slate-800">Key Points</h3>
-            <ul className="mt-2 space-y-2">
-              {meeting.keyPoints.map((point, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                  <AutoAwesomeIcon
-                    sx={{ fontSize: 16 }}
-                    className="mt-0.5 text-accent-500 flex-shrink-0"
-                  />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-slate-800">Key Points</h3>
+              <ul className="mt-2 space-y-2">
+                {meeting.keyPoints.map((point, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                    <AutoAwesomeIcon
+                      sx={{ fontSize: 16 }}
+                      className="mt-0.5 text-accent-500 flex-shrink-0"
+                    />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {/* AI status pill */}
@@ -66,7 +68,7 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
         </div>
 
         {/* Action items */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-5 flex flex-col">
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-5 flex flex-col max-h-[70vh]">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-800">Action Items</h3>
             <span className="text-xs font-medium text-slate-400">
@@ -82,7 +84,7 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
             />
           </div>
 
-          <ul className="mt-4 space-y-3 flex-1">
+          <ul className="mt-4 space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
             {items.map((item) => (
               <li key={item.id}>
                 <button

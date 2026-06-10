@@ -9,9 +9,10 @@ const tagStyles = [
 
 export function MeetingObjective({ meeting }: { meeting: MeetingDetail }) {
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-5">
+    <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col max-h-[60vh]">
       <h2 className="text-2xl font-bold text-slate-800">Notes</h2>
 
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
       {/* Tags */}
       <div className="mt-4 flex flex-wrap gap-2">
         {meeting.tags.map((tag, i) => (
@@ -38,6 +39,7 @@ export function MeetingObjective({ meeting }: { meeting: MeetingDetail }) {
             {meeting.objective}
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

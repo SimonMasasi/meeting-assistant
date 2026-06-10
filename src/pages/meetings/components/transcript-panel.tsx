@@ -4,7 +4,7 @@ import { MeetingDetail } from "../mock-data";
 
 export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col min-h-0">
+    <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col min-h-0 max-h-[70vh]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-800">Transcript</h2>

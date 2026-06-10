@@ -2,6 +2,9 @@ import { useAtomValue } from "jotai";
 import { useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchOffIcon from "@mui/icons-material/SearchOff";
+import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
+import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { meetingsAtom } from "@/atoms/meetings-atoms";
 import { getMeetingById } from "./mock-data";
 import { MeetingHeader } from "./components/meeting-header";
@@ -46,18 +49,39 @@ export function MeetingDetailPage() {
         Back to meetings
       </button>
 
+      {/* Page heading: meeting name + date details */}
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
+          {meeting.title}
+        </h1>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarTodayOutlinedIcon sx={{ fontSize: 15 }} />
+            {meeting.date}, {meeting.time}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            {meeting.source === "online" ? (
+              <VideocamOutlinedIcon sx={{ fontSize: 16 }} />
+            ) : (
+              <GroupsOutlinedIcon sx={{ fontSize: 16 }} />
+            )}
+            {meeting.source === "online" ? "Online" : "In-person"}
+          </span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left: recording + AI notes */}
+        {/* Left (primary focus): live transcript + AI notes/summary */}
         <div className="xl:col-span-2 space-y-6">
-          <MeetingHeader meeting={meeting} />
+          <TranscriptPanel meeting={meeting} />
           <NotesKeyPoints meeting={meeting} />
         </div>
 
-        {/* Right: live recording + notes objective + transcript */}
+        {/* Right (secondary): recording controls, objective + small playback */}
         <div className="xl:col-span-1 space-y-6">
           <RecordingPanel meeting={meeting} />
           <MeetingObjective meeting={meeting} />
-          <TranscriptPanel meeting={meeting} />
+          <MeetingHeader meeting={meeting} />
         </div>
       </div>
     </div>
