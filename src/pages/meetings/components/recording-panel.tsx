@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import StopRoundedIcon from "@mui/icons-material/StopRounded";
 import MicNoneOutlinedIcon from "@mui/icons-material/MicNoneOutlined";
-import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import AudiotrackOutlinedIcon from "@mui/icons-material/AudiotrackOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import { MenuItem, Select } from "@mui/material";
 import {
   checkMicrophonePermission,
   isRecording,
+  listMicrophones,
   MicPermission,
+  MicrophoneDevice,
+  onRecordingLevel,
   requestMicrophonePermission,
   SavedRecording,
   startRecording,
@@ -22,6 +25,12 @@ function formatElapsed(totalSeconds: number): string {
   const s = totalSeconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Per-bar amplitude multipliers for the waveform, weighted toward the center so
+ * the row reads as a wave rising from the middle rather than a flat block.
+ */
+const BAR_WEIGHTS = [0.35, 0.6, 0.85, 1, 0.85, 0.6, 0.35];
 
 /** Human-readable file size for the saved-recording chip. */
 function formatSize(bytes: number): string {
@@ -38,6 +47,10 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [permission, setPermission] = useState<MicPermission | null>(null);
+  const [devices, setDevices] = useState<MicrophoneDevice[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  // Live mic amplitude (0..1) from the backend, driving the waveform bars.
+  const [level, setLevel] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // A recording lives in the Rust backend and outlives this component, so on
@@ -50,21 +63,45 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
     checkMicrophonePermission()
       .then(setPermission)
       .catch(() => {});
+    // Populate the device picker, defaulting to the OS default mic (or the first
+    // available one) for this session.
+    listMicrophones()
+      .then((list) => {
+        setDevices(list);
+        const fallback = list.find((d) => d.isDefault) ?? list[0];
+        setSelectedDevice(fallback?.name ?? null);
+      })
+      .catch(() => {});
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
-  // Drive the on-screen timer whenever a recording is active.
+  // Drive the on-screen timer and the live waveform whenever a recording is
+  // active. The waveform subscribes to backend level events and unsubscribes
+  // (and resets to flat) as soon as recording stops or the component unmounts.
   useEffect(() => {
     if (!recording) {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
+      setLevel(0);
       return;
     }
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+
+    let unlisten: (() => void) | null = null;
+    let active = true;
+    onRecordingLevel(setLevel).then((fn) => {
+      // Guard against the effect cleaning up before the listener resolves.
+      if (active) unlisten = fn;
+      else fn();
+    });
+
     return () => {
+      active = false;
       if (timerRef.current) clearInterval(timerRef.current);
+      if (unlisten) unlisten();
+      setLevel(0);
     };
   }, [recording]);
 
@@ -81,7 +118,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
         setBusy(false);
         return;
       }
-      await startRecording(meeting.id);
+      await startRecording(meeting.id, selectedDevice ?? undefined);
       setElapsed(0);
       setRecording(true);
     } catch (e) {
@@ -141,17 +178,57 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
         microphone.
       </p>
 
-      {/* Waveform-ish affordance while recording */}
-      <div className="mt-4 flex items-center justify-center h-16 rounded-xl bg-slate-50">
-        {recording ? (
-          <GraphicEqIcon
-            sx={{ fontSize: 40 }}
-            className="text-red-500 animate-pulse"
-          />
-        ) : (
-          <GraphicEqIcon sx={{ fontSize: 40 }} className="text-slate-300" />
-        )}
+      {/* Live waveform — bars rise with the mic level and ease back on quiet. */}
+      <div className="mt-4 flex items-center justify-center gap-1.5 h-16 rounded-xl bg-slate-50">
+        {BAR_WEIGHTS.map((weight, i) => {
+          // Map the 0..1 level to a bar height, leaving a small idle baseline so
+          // the bars stay visible (flat) when there's no sound.
+          const height = recording
+            ? 12 + Math.min(1, level * weight * 2.4) * 40
+            : 6;
+          return (
+            <div
+              key={i}
+              className={`w-1.5 rounded-full transition-[height] duration-100 ease-out ${
+                recording ? "bg-red-500" : "bg-slate-300"
+              }`}
+              style={{ height: `${height}px` }}
+            />
+          );
+        })}
       </div>
+
+      {!blocked && devices.length > 0 && (
+        <div className="mt-4">
+          <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+            Microphone
+          </label>
+          <Select
+            value={selectedDevice ?? ""}
+            onChange={(e) => setSelectedDevice(e.target.value || null)}
+            disabled={recording || busy}
+            fullWidth
+            size="small"
+            sx={{
+              borderRadius: "12px",
+              fontSize: "0.875rem",
+              backgroundColor: "#f8fafc",
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#e2e8f0" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#cbd5e1" },
+              "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#3b82f6",
+              },
+            }}
+          >
+            {devices.map((d) => (
+              <MenuItem key={d.name} value={d.name} sx={{ fontSize: "0.875rem" }}>
+                {d.name}
+                {d.isDefault ? " (default)" : ""}
+              </MenuItem>
+            ))}
+          </Select>
+        </div>
+      )}
 
       {blocked && !recording && (
         <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-amber-50 px-3 py-2.5 text-sm">

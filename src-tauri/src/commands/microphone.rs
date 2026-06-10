@@ -8,7 +8,7 @@
 //! `stop_recording`.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::commands::storage::resolve_storage_dir;
 use crate::db::pool;
@@ -48,14 +48,46 @@ pub struct SavedRecording {
     pub size: u64,
 }
 
-/// Begin capturing the default microphone into a fresh WAV file under the
-/// meeting's storage folder. Errors if a recording is already running or no
+/// An available audio input device, surfaced to the frontend so the user can
+/// choose which microphone to record from. cpal has no stable device IDs, so the
+/// `name` doubles as the identifier passed back into `start_recording`.
+#[derive(Serialize)]
+pub struct MicrophoneDevice {
+    pub name: String,
+    pub is_default: bool,
+}
+
+/// List the available microphone (input) devices, marking the OS default. Returns
+/// an empty list when no input device is present. Devices whose name can't be read
+/// are skipped rather than failing the whole call.
+#[tauri::command]
+pub fn list_microphones() -> Result<Vec<MicrophoneDevice>> {
+    let host = cpal::default_host();
+    let default_name = host
+        .default_input_device()
+        .and_then(|d| d.name().ok());
+
+    let mut devices = Vec::new();
+    for device in host.input_devices().map_err(|e| Error::Message(e.to_string()))? {
+        if let Ok(name) = device.name() {
+            let is_default = default_name.as_deref() == Some(name.as_str());
+            devices.push(MicrophoneDevice { name, is_default });
+        }
+    }
+    Ok(devices)
+}
+
+/// Begin capturing a microphone into a fresh WAV file under the meeting's
+/// storage folder. `device_name` selects the input device by name (as returned
+/// by `list_microphones`); `None`, or a name that no longer matches any device,
+/// falls back to the OS default. Errors if a recording is already running or no
 /// input device is available.
 #[tauri::command]
 pub async fn start_recording(
     app: tauri::AppHandle,
     state: State<'_, RecordingState>,
     meeting_id: String,
+    device_name: Option<String>,
 ) -> Result<()> {
     if state.0.lock().unwrap().is_some() {
         return Err(Error::Message(
@@ -96,7 +128,8 @@ pub async fn start_recording(
     let thread = {
         let path = path.clone();
         let stop = stop.clone();
-        std::thread::spawn(move || capture(path, stop, ready_tx))
+        let app = app.clone();
+        std::thread::spawn(move || capture(app, path, device_name, stop, ready_tx))
     };
 
     match ready_rx.recv() {
@@ -183,10 +216,13 @@ pub fn is_recording(state: State<'_, RecordingState>) -> bool {
     state.0.lock().unwrap().is_some()
 }
 
-/// Runs on the dedicated capture thread: open the default input device, stream
-/// samples into the WAV writer until `stop` is set, then finalize the file.
+/// Runs on the dedicated capture thread: open the chosen (or default) input
+/// device, stream samples into the WAV writer until `stop` is set, then finalize
+/// the file.
 fn capture(
+    app: tauri::AppHandle,
     path: PathBuf,
+    device_name: Option<String>,
     stop: Arc<AtomicBool>,
     ready: mpsc::Sender<std::result::Result<(), String>>,
 ) -> Result<()> {
@@ -204,7 +240,15 @@ fn capture(
     }
 
     let host = cpal::default_host();
-    let device = match host.default_input_device() {
+
+    // Prefer the named device when it's still present; otherwise fall back to the
+    // OS default so a stale/removed selection doesn't break recording.
+    let selected = device_name.as_deref().and_then(|wanted| {
+        host.input_devices()
+            .ok()?
+            .find(|d| d.name().map(|n| n == wanted).unwrap_or(false))
+    });
+    let device = match selected.or_else(|| host.default_input_device()) {
         Some(d) => d,
         None => {
             let msg = "No microphone (input device) was found".to_string();
@@ -227,24 +271,30 @@ fn capture(
     )))));
     let config: cpal::StreamConfig = supported.config();
 
+    // Latest peak amplitude (0.0..1.0) seen by the audio callback since the loop
+    // below last read it, stored as `f32` bits. The callback only writes here —
+    // emitting Tauri events from a real-time audio thread could block it.
+    let peak = Arc::new(AtomicU32::new(0));
+
     let err_fn = |err| eprintln!("microphone stream error: {err}");
     let w = writer.clone();
+    let p = peak.clone();
     let stream = match sample_format {
         cpal::SampleFormat::F32 => device.build_input_stream(
             &config,
-            move |data: &[f32], _: &_| write_samples(data, &w, |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
+            move |data: &[f32], _: &_| write_samples(data, &w, &p, |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
             err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => device.build_input_stream(
             &config,
-            move |data: &[i16], _: &_| write_samples(data, &w, |s| s),
+            move |data: &[i16], _: &_| write_samples(data, &w, &p, |s| s),
             err_fn,
             None,
         ),
         cpal::SampleFormat::U16 => device.build_input_stream(
             &config,
-            move |data: &[u16], _: &_| write_samples(data, &w, |s| (s as i32 - 32768) as i16),
+            move |data: &[u16], _: &_| write_samples(data, &w, &p, |s| (s as i32 - 32768) as i16),
             err_fn,
             None,
         ),
@@ -260,8 +310,20 @@ fn capture(
     // Setup succeeded; capture is live.
     let _ = ready.send(Ok(()));
 
+    // Drive the UI's waveform: read-and-reset the peak each tick (~20fps) and
+    // emit a smoothed 0.0..1.0 level. Smoothing decays toward the new peak so
+    // the animation eases up and down instead of flickering.
+    let mut smoothed = 0.0f32;
     while !stop.load(Ordering::Relaxed) {
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let raw = f32::from_bits(peak.swap(0, Ordering::Relaxed));
+        // Snap up to a louder peak immediately; ease back down on quiet.
+        smoothed = if raw > smoothed {
+            raw
+        } else {
+            smoothed * 0.6 + raw * 0.4
+        };
+        let _ = app.emit("recording-level", smoothed);
     }
 
     // Dropping the stream halts the callback before we finalize the header.
@@ -272,13 +334,30 @@ fn capture(
     Ok(())
 }
 
-/// Convert a callback buffer to 16-bit samples and append them to the WAV.
-fn write_samples<T: Copy>(data: &[T], writer: &SharedWriter, to_i16: impl Fn(T) -> i16) {
+/// Convert a callback buffer to 16-bit samples, append them to the WAV, and
+/// record the buffer's peak amplitude (0.0..1.0) into `peak` for the UI meter.
+fn write_samples<T: Copy>(
+    data: &[T],
+    writer: &SharedWriter,
+    peak: &AtomicU32,
+    to_i16: impl Fn(T) -> i16,
+) {
+    let mut buffer_peak = 0.0f32;
     if let Ok(mut guard) = writer.lock() {
         if let Some(w) = guard.as_mut() {
             for &sample in data {
-                let _ = w.write_sample(to_i16(sample));
+                let s = to_i16(sample);
+                let _ = w.write_sample(s);
+                let amp = (s as f32).abs() / 32767.0;
+                if amp > buffer_peak {
+                    buffer_peak = amp;
+                }
             }
         }
+    }
+    // Keep the highest peak across callbacks until the loop reads and resets it.
+    let prev = f32::from_bits(peak.load(Ordering::Relaxed));
+    if buffer_peak > prev {
+        peak.store(buffer_peak.to_bits(), Ordering::Relaxed);
     }
 }
