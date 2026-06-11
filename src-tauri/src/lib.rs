@@ -25,6 +25,8 @@ pub fn run() {
             commands::storage::set_storage_dir,
             commands::mail::get_mail_settings,
             commands::mail::set_mail_settings,
+            commands::ai::get_ai_settings,
+            commands::ai::set_ai_settings,
             commands::microphone::list_microphones,
             commands::microphone::start_recording,
             commands::microphone::stop_recording,

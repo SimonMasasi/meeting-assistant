@@ -22,3 +22,30 @@ pub struct MailSettings {
     pub encryption: String, // "ssl" | "tls" | "starttls" | "none"
     pub reply_to: String,
 }
+
+/// Per-role AI model provider configuration. Each role (speech-to-text,
+/// text-to-speech, chat/LLM) names a `provider`, an `api_key`, a `model` and a
+/// `base_url`. Blank fields are treated as "use the application default" by the
+/// callers that consume these settings.
+///
+/// Persisted as the single row (`id = 1`) of the `ai_settings` table.
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct AiSettings {
+    // Speech-to-text (transcription)
+    pub stt_provider: String,
+    pub stt_api_key: String,
+    pub stt_model: String,
+    pub stt_base_url: String,
+
+    // Text-to-speech
+    pub tts_provider: String,
+    pub tts_api_key: String,
+    pub tts_model: String,
+    pub tts_base_url: String,
+
+    // Chat / summarization (LLM)
+    pub chat_provider: String,
+    pub chat_api_key: String,
+    pub chat_model: String,
+    pub chat_base_url: String,
+}
