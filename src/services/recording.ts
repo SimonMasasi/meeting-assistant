@@ -27,10 +27,12 @@ export function listMicrophones(): Promise<MicrophoneDevice[]> {
 export function startRecording(
   meetingId: string,
   deviceName?: string,
+  transcribe = false,
 ): Promise<void> {
   return invoke<void>("start_recording", {
     meetingId,
     deviceName: deviceName ?? null,
+    transcribe,
   });
 }
 

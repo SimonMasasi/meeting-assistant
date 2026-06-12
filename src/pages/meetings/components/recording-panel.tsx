@@ -4,6 +4,7 @@ import StopRoundedIcon from "@mui/icons-material/StopRounded";
 import MicNoneOutlinedIcon from "@mui/icons-material/MicNoneOutlined";
 import AudiotrackOutlinedIcon from "@mui/icons-material/AudiotrackOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
 import { MenuItem, Select } from "@mui/material";
 import {
   checkMicrophonePermission,
@@ -17,6 +18,14 @@ import {
   startRecording,
   stopRecording,
 } from "@/services/recording";
+import {
+  ensureTranscriptionModels,
+  onTranscriptionProgress,
+  onTranscriptionStatus,
+  TranscriptionProgress,
+  TranscriptionStatus,
+  transcriptionModelsReady,
+} from "@/services/transcription";
 import { MeetingDetail } from "../mock-data";
 
 /** mm:ss for the live timer. */
@@ -31,6 +40,20 @@ function formatElapsed(totalSeconds: number): string {
  * the row reads as a wave rising from the middle rather than a flat block.
  */
 const BAR_WEIGHTS = [0.35, 0.6, 0.85, 1, 0.85, 0.6, 0.35];
+
+/** Wording for the transcription worker's current state. */
+function workerLabel(status: TranscriptionStatus, recording: boolean): string {
+  if (status.state === "loading") return "Loading speech models…";
+  if (status.state === "done") return "Transcript ready";
+  // "running"
+  const behind = Math.ceil(status.backlogMs / 1000);
+  if (!recording) {
+    return behind > 1
+      ? `Finishing transcription… ${behind}s left`
+      : "Finishing transcription…";
+  }
+  return behind > 2 ? `Transcribing live · ${behind}s behind` : "Transcribing live";
+}
 
 /** Human-readable file size for the saved-recording chip. */
 function formatSize(bytes: number): string {
@@ -51,6 +74,11 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   // Live mic amplitude (0..1) from the backend, driving the waveform bars.
   const [level, setLevel] = useState(0);
+  // Live transcription + speaker detection: user opt-in, plus model-download state.
+  const [transcribe, setTranscribe] = useState(false);
+  const [modelsReady, setModelsReady] = useState<boolean | null>(null);
+  const [download, setDownload] = useState<TranscriptionProgress | null>(null);
+  const [status, setStatus] = useState<TranscriptionStatus | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // A recording lives in the Rust backend and outlives this component, so on
@@ -72,10 +100,73 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
         setSelectedDevice(fallback?.name ?? null);
       })
       .catch(() => {});
+    // Whether the on-device speech models are already downloaded, so the toggle
+    // knows if enabling will trigger a first-run download.
+    transcriptionModelsReady()
+      .then(setModelsReady)
+      .catch(() => setModelsReady(false));
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  // Surface model-download progress while it runs.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let active = true;
+    onTranscriptionProgress((p) => {
+      setDownload(p.stage === "ready" || p.pct >= 100 ? null : p);
+    }).then((fn) => {
+      if (active) unlisten = fn;
+      else fn();
+    });
+    return () => {
+      active = false;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  // Track the worker's live/backlog status so the UI can show progress, including
+  // the catch-up after recording stops. Clear it shortly after it reports "done".
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let active = true;
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+    onTranscriptionStatus((s) => {
+      setStatus(s);
+      if (clearTimer) clearTimeout(clearTimer);
+      if (s.state === "done") {
+        clearTimer = setTimeout(() => setStatus(null), 4000);
+      }
+    }).then((fn) => {
+      if (active) unlisten = fn;
+      else fn();
+    });
+    return () => {
+      active = false;
+      if (unlisten) unlisten();
+      if (clearTimer) clearTimeout(clearTimer);
+    };
+  }, []);
+
+  // Flip the toggle. Turning it on for the first time downloads the models
+  // (which can take a minute), so we kick that off here rather than at start.
+  const toggleTranscribe = async () => {
+    const next = !transcribe;
+    setTranscribe(next);
+    if (next && !modelsReady) {
+      setError(null);
+      try {
+        await ensureTranscriptionModels();
+        setModelsReady(true);
+      } catch (e) {
+        setError(String(e));
+        setTranscribe(false);
+      } finally {
+        setDownload(null);
+      }
+    }
+  };
 
   // Drive the on-screen timer and the live waveform whenever a recording is
   // active. The waveform subscribes to backend level events and unsubscribes
@@ -118,7 +209,13 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
         setBusy(false);
         return;
       }
-      await startRecording(meeting.id, selectedDevice ?? undefined);
+      // Only request live transcription if the models are actually present;
+      // otherwise the backend would just record without it.
+      await startRecording(
+        meeting.id,
+        selectedDevice ?? undefined,
+        transcribe && modelsReady === true,
+      );
       setElapsed(0);
       setRecording(true);
     } catch (e) {
@@ -227,6 +324,87 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
               </MenuItem>
             ))}
           </Select>
+        </div>
+      )}
+
+      {/* Live transcription + speaker detection — runs fully on-device. */}
+      {!blocked && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={toggleTranscribe}
+            disabled={recording || busy || download !== null}
+            className="flex w-full items-start gap-3 text-left disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <span
+              className={`mt-0.5 flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                transcribe ? "bg-primary-600" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  transcribe ? "translate-x-4" : ""
+                }`}
+              />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-slate-700">
+                Live transcription &amp; speaker detection
+              </span>
+              <span className="block text-xs text-slate-500">
+                Transcribe and label who's speaking, in real time and fully
+                on-device.
+                {modelsReady === false && !transcribe
+                  ? " First use downloads ~250 MB of models."
+                  : ""}
+              </span>
+            </span>
+          </button>
+
+          {download && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>Downloading {download.file}…</span>
+                <span>{download.pct}%</span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-primary-600 transition-[width]"
+                  style={{ width: `${download.pct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {!download && status && (
+            <div className="mt-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                {status.state !== "done" && (
+                  <AutorenewIcon
+                    sx={{ fontSize: 14 }}
+                    className="animate-spin text-primary-600"
+                  />
+                )}
+                <span>{workerLabel(status, recording)}</span>
+              </div>
+              {/* Catch-up bar shown while the worker drains a post-stop backlog. */}
+              {!recording &&
+                status.state === "running" &&
+                status.receivedMs > 0 && (
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-primary-600 transition-[width]"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (status.processedMs / status.receivedMs) * 100,
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                )}
+            </div>
+          )}
         </div>
       )}
 

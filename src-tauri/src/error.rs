@@ -31,6 +31,12 @@ pub enum Error {
     #[error(transparent)]
     Wav(#[from] hound::Error),
 
+    /// On-device transcription / speaker-diarization failures (model load,
+    /// download, or inference). sherpa-rs surfaces errors as `eyre`/boxed types,
+    /// so they're flattened to a message at the call site.
+    #[error("transcription error: {0}")]
+    Transcription(String),
+
     /// Domain errors that don't originate from an underlying library error,
     /// e.g. validation failures.
     #[error("{0}")]

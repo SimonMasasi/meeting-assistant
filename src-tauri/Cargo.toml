@@ -29,6 +29,19 @@ sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 cpal = "0.15"
 hound = "3.5"
 
+# On-device speech pipeline: Silero VAD + speaker embeddings + Whisper ASR, all
+# offline via ONNX. `download-binaries` (a default feature) fetches the prebuilt
+# sherpa-onnx runtime at build time, so no system install is required.
+sherpa-rs = "0.6"
+# Resamples the device-rate microphone capture down to the 16 kHz mono the models
+# require.
+rubato = "0.15"
+# Model fetch-on-first-use: download the ONNX models and unpack the Whisper
+# tar.bz2 bundle into the app data dir.
+ureq = "2"
+tar = "0.4"
+bzip2 = "0.4"
+
 # macOS microphone authorization (TCC) is queried via AVFoundation's
 # AVCaptureDevice, reached through these objc bindings.
 [target.'cfg(target_os = "macos")'.dependencies]

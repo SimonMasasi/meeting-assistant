@@ -88,6 +88,7 @@ pub async fn start_recording(
     state: State<'_, RecordingState>,
     meeting_id: String,
     device_name: Option<String>,
+    transcribe: bool,
 ) -> Result<()> {
     if state.0.lock().unwrap().is_some() {
         return Err(Error::Message(
@@ -129,7 +130,10 @@ pub async fn start_recording(
         let path = path.clone();
         let stop = stop.clone();
         let app = app.clone();
-        std::thread::spawn(move || capture(app, path, device_name, stop, ready_tx))
+        let meeting_id = meeting_id.clone();
+        std::thread::spawn(move || {
+            capture(app, path, device_name, meeting_id, transcribe, stop, ready_tx)
+        })
     };
 
     match ready_rx.recv() {
@@ -223,6 +227,8 @@ fn capture(
     app: tauri::AppHandle,
     path: PathBuf,
     device_name: Option<String>,
+    meeting_id: String,
+    transcribe: bool,
     stop: Arc<AtomicBool>,
     ready: mpsc::Sender<std::result::Result<(), String>>,
 ) -> Result<()> {
@@ -259,10 +265,11 @@ fn capture(
     let supported = try_ready!(device.default_input_config());
 
     let channels = supported.channels();
+    let sample_rate = supported.sample_rate().0;
     let sample_format = supported.sample_format();
     let spec = hound::WavSpec {
         channels,
-        sample_rate: supported.sample_rate().0,
+        sample_rate,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
@@ -270,6 +277,49 @@ fn capture(
         &path, spec
     )))));
     let config: cpal::StreamConfig = supported.config();
+
+    // Live transcription tee: when enabled and the models are already present,
+    // hand each callback's samples to a worker thread that resamples, diarizes,
+    // and transcribes in real time. The WAV path below is untouched — this only
+    // copies samples. Missing models degrade gracefully to plain recording.
+    let (tee, pipeline): (Option<mpsc::Sender<Vec<f32>>>, Option<JoinHandle<()>>) = if transcribe {
+        match crate::diarize::models::resolve(&app)
+            .ok()
+            .filter(|m| m.all_present())
+        {
+            Some(models) => {
+                let (tx, rx) = mpsc::channel::<Vec<f32>>();
+                let file_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("recording.wav")
+                    .to_string();
+                let recording_id = format!("{meeting_id}-{file_name}");
+                let app = app.clone();
+                let handle = std::thread::spawn(move || {
+                    crate::diarize::pipeline::run(
+                        app,
+                        meeting_id,
+                        Some(recording_id),
+                        sample_rate,
+                        channels,
+                        models,
+                        rx,
+                    );
+                });
+                (Some(tx), Some(handle))
+            }
+            None => {
+                let _ = app.emit(
+                    "transcription-error",
+                    "Speech models are not downloaded yet".to_string(),
+                );
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
 
     // Latest peak amplitude (0.0..1.0) seen by the audio callback since the loop
     // below last read it, stored as `f32` bits. The callback only writes here —
@@ -279,22 +329,25 @@ fn capture(
     let err_fn = |err| eprintln!("microphone stream error: {err}");
     let w = writer.clone();
     let p = peak.clone();
+    // A clone of the tee sender owned by the audio callback; the original stays
+    // in this function so the channel only closes once recording fully stops.
+    let t = tee.clone();
     let stream = match sample_format {
         cpal::SampleFormat::F32 => device.build_input_stream(
             &config,
-            move |data: &[f32], _: &_| write_samples(data, &w, &p, |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
+            move |data: &[f32], _: &_| write_samples(data, &w, &p, t.as_ref(), |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
             err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => device.build_input_stream(
             &config,
-            move |data: &[i16], _: &_| write_samples(data, &w, &p, |s| s),
+            move |data: &[i16], _: &_| write_samples(data, &w, &p, t.as_ref(), |s| s),
             err_fn,
             None,
         ),
         cpal::SampleFormat::U16 => device.build_input_stream(
             &config,
-            move |data: &[u16], _: &_| write_samples(data, &w, &p, |s| (s as i32 - 32768) as i16),
+            move |data: &[u16], _: &_| write_samples(data, &w, &p, t.as_ref(), |s| (s as i32 - 32768) as i16),
             err_fn,
             None,
         ),
@@ -326,23 +379,41 @@ fn capture(
         let _ = app.emit("recording-level", smoothed);
     }
 
-    // Dropping the stream halts the callback before we finalize the header.
+    // Dropping the stream halts the callback (and drops its tee clone) before we
+    // finalize the header.
     drop(stream);
     if let Some(w) = writer.lock().unwrap().take() {
         w.finalize()?;
     }
+
+    // Close the tee so the transcription worker knows recording ended; it then
+    // drains any remaining backlog and persists/emits the final lines on its own
+    // thread. We deliberately do NOT join it: if the worker fell behind real time
+    // it could take a while to catch up, and `stop_recording` must return
+    // promptly so the UI can react. Dropping the handle detaches the thread.
+    drop(tee);
+    drop(pipeline);
     Ok(())
 }
 
-/// Convert a callback buffer to 16-bit samples, append them to the WAV, and
-/// record the buffer's peak amplitude (0.0..1.0) into `peak` for the UI meter.
+/// Convert a callback buffer to 16-bit samples, append them to the WAV, record
+/// the buffer's peak amplitude (0.0..1.0) into `peak` for the UI meter, and —
+/// when live transcription is on — forward a normalized `f32` copy over `tee` to
+/// the transcription worker. Sending never blocks the audio thread for long: the
+/// channel is unbounded and the receiver only does heavy work on its own thread.
 fn write_samples<T: Copy>(
     data: &[T],
     writer: &SharedWriter,
     peak: &AtomicU32,
+    tee: Option<&mpsc::Sender<Vec<f32>>>,
     to_i16: impl Fn(T) -> i16,
 ) {
     let mut buffer_peak = 0.0f32;
+    let mut tee_buf = if tee.is_some() {
+        Vec::with_capacity(data.len())
+    } else {
+        Vec::new()
+    };
     if let Ok(mut guard) = writer.lock() {
         if let Some(w) = guard.as_mut() {
             for &sample in data {
@@ -352,7 +423,15 @@ fn write_samples<T: Copy>(
                 if amp > buffer_peak {
                     buffer_peak = amp;
                 }
+                if tee.is_some() {
+                    tee_buf.push(s as f32 / 32768.0);
+                }
             }
+        }
+    }
+    if let Some(tx) = tee {
+        if !tee_buf.is_empty() {
+            let _ = tx.send(tee_buf);
         }
     }
     // Keep the highest peak across callbacks until the loop reads and resets it.

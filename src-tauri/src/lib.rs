@@ -5,6 +5,7 @@
 
 mod commands;
 mod db;
+mod diarize;
 mod error;
 mod settings;
 
@@ -33,6 +34,10 @@ pub fn run() {
             commands::microphone::is_recording,
             commands::mic_permission::check_microphone_permission,
             commands::mic_permission::request_microphone_permission,
+            commands::transcription::transcription_models_ready,
+            commands::transcription::ensure_transcription_models,
+            commands::transcription::get_transcript,
+            commands::transcription::rename_speaker,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
