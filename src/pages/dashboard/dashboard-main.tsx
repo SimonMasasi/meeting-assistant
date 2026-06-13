@@ -22,8 +22,8 @@ export function DashboardMain() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Meeting Assistant</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Overview for June 2026</p>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Meeting Assistant</h1>
+        <p className="text-sm text-slate-400 dark:text-slate-500 mt-0.5">Overview for June 2026</p>
       </div>
 
       {/* Row 1 — Stat Cards */}
@@ -155,7 +155,7 @@ export function DashboardMain() {
       </div>
 
       {/* Row 5 — Recent Meetings Table */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg dark:shadow-dark-xl overflow-hidden">
         <RecentMeetingsTable />
       </div>
 

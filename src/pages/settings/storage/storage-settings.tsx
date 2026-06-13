@@ -45,20 +45,20 @@ export function StorageSettings() {
 
   return (
     <div className="p-2">
-      <h2 className="text-lg font-semibold text-slate-700">Storage Settings</h2>
-      <p className="text-sm text-slate-500 mt-1">
+      <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Storage Settings</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
         Choose where meeting attachments are saved. Files are stored under a{" "}
         <span className="font-medium">meeting-assistant</span> folder, organized
         per meeting. Defaults to your Downloads folder.
       </p>
 
-      <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+      <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         <FolderOutlinedIcon sx={{ color: "#3b82f6" }} />
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Current folder
           </p>
-          <p className="text-sm font-medium text-slate-700 truncate">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
             {currentDir || "Loading…"}
           </p>
         </div>

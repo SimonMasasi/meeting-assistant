@@ -31,12 +31,12 @@ export function ForgotPassword({ initialEmail = '', onBack }: ForgotPasswordProp
         </div>
 
         <h1 className="text-2xl font-bold text-neutral-900 text-center">Check your inbox</h1>
-        <p className="text-sm text-neutral-500 text-center mt-2 mb-6">
+        <p className="text-sm text-neutral-500 dark:text-slate-400 text-center mt-2 mb-6">
           We've sent a reset link to{' '}
-          <span className="font-medium text-neutral-700 break-all">{email}</span>
+          <span className="font-medium text-neutral-700 dark:text-slate-200 break-all">{email}</span>
         </p>
 
-        <p className="text-xs text-neutral-400 text-center">
+        <p className="text-xs text-neutral-400 dark:text-slate-500 text-center">
           Didn't receive it?{' '}
           <button
             type="button"
@@ -56,7 +56,7 @@ export function ForgotPassword({ initialEmail = '', onBack }: ForgotPasswordProp
         <button
           type="button"
           onClick={onBack}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-neutral-200 text-sm text-neutral-600 hover:bg-neutral-50 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-neutral-200 text-sm text-neutral-600 dark:text-slate-400 hover:bg-neutral-50 transition-colors"
         >
           <ArrowBackIcon className="login-icon-sm" />
           Back to sign in
@@ -78,13 +78,13 @@ export function ForgotPassword({ initialEmail = '', onBack }: ForgotPasswordProp
           type="button"
           onClick={onBack}
           aria-label="Go back"
-          className="absolute left-0 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+          className="absolute left-0 p-1.5 rounded-lg text-neutral-400 dark:text-slate-500 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
         >
           <ArrowBackIcon className="login-icon-md" />
         </button>
         <h1 className="text-2xl font-bold text-neutral-900">Reset password</h1>
       </div>
-      <p className="text-sm text-neutral-500 text-center mt-1 mb-7">
+      <p className="text-sm text-neutral-500 dark:text-slate-400 text-center mt-1 mb-7">
         Enter your email and we'll send you a reset link
       </p>
 
@@ -92,12 +92,12 @@ export function ForgotPassword({ initialEmail = '', onBack }: ForgotPasswordProp
         <div>
           <label
             htmlFor="reset-email"
-            className="block text-sm font-medium text-neutral-700 mb-1.5"
+            className="block text-sm font-medium text-neutral-700 dark:text-slate-200 mb-1.5"
           >
             Email address
           </label>
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400 dark:text-slate-500">
               <EmailOutlinedIcon className="login-icon-sm" />
             </span>
             <input
@@ -108,7 +108,7 @@ export function ForgotPassword({ initialEmail = '', onBack }: ForgotPasswordProp
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
-              className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-xl text-sm text-neutral-800 placeholder-neutral-400 bg-neutral-50 focus:bg-white focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition"
+              className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 dark:border-slate-700 rounded-xl text-sm text-neutral-800 dark:text-slate-200 placeholder-neutral-400 dark:placeholder-slate-500 bg-neutral-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition"
             />
           </div>
         </div>

@@ -9,7 +9,7 @@ type cardProps = {
 export function CardLayout(props: cardProps) {
   if (!props.cards.length) {
     return (
-      <p className="text-sm text-slate-500 py-8 text-center">
+      <p className="text-sm text-slate-500 dark:text-slate-400 py-8 text-center">
         No items to display.
       </p>
     );
@@ -29,7 +29,7 @@ export function CardLayout(props: cardProps) {
               <div className="flex-auto p-4">
                 <div className="flex flex-row -mx-3">
                   <div className="flex-none w-2/3 max-w-full px-3">
-                    <p className="mb-0 font-sans text-sm font-semibold leading-normal uppercase tracking-wide text-slate-600">
+                    <p className="mb-0 font-sans text-sm font-semibold leading-normal uppercase tracking-wide text-slate-600 dark:text-slate-300">
                       {card?.name}
                     </p>
                   </div>

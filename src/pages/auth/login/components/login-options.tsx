@@ -16,7 +16,7 @@ const AUTH_PROVIDERS = [
     label: 'Continue with Google',
     Icon: GoogleIcon,
     iconClass: 'text-danger-500 login-icon-md',
-    variant: 'border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 shadow-sm',
+    variant: 'border border-neutral-200 bg-white dark:bg-slate-800 hover:bg-neutral-50 text-neutral-700 dark:text-slate-200 shadow-sm',
   },
   {
     id: 'apple',
@@ -44,7 +44,7 @@ export function LoginOptions({ onEmailClick }: LoginOptionsProps) {
 
       {/* Heading */}
       <h1 className="text-2xl font-bold text-neutral-900 text-center">Welcome back</h1>
-      <p className="text-sm text-neutral-500 text-center mt-1 mb-8">
+      <p className="text-sm text-neutral-500 dark:text-slate-400 text-center mt-1 mb-8">
         Sign in to your account or create a new one
       </p>
 
@@ -66,14 +66,14 @@ export function LoginOptions({ onEmailClick }: LoginOptionsProps) {
       {/* Divider */}
       <div className="flex items-center gap-4 my-6">
         <div className="flex-1 h-px bg-neutral-200" />
-        <span className="text-xs text-neutral-400 font-medium tracking-widest uppercase">or</span>
+        <span className="text-xs text-neutral-400 dark:text-slate-500 font-medium tracking-widest uppercase">or</span>
         <div className="flex-1 h-px bg-neutral-200" />
       </div>
 
       {/* Guest */}
       <button
         type="button"
-        className={`${BASE_BTN} border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-600`}
+        className={`${BASE_BTN} border border-neutral-300 bg-white dark:bg-slate-800 hover:bg-neutral-50 text-neutral-600 dark:text-slate-400`}
       >
         <AccountCircleOutlinedIcon className="login-icon-md" />
         Continue Without Account

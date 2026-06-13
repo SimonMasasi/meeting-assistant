@@ -1,4 +1,5 @@
 import ReactECharts from "echarts-for-react";
+import { useChartTheme } from "./chart-theme";
 
 export interface LineChartSeries {
   name: string;
@@ -21,6 +22,7 @@ export interface LineChartProps {
 }
 
 export function LineChart(props: LineChartProps) {
+  const ct = useChartTheme();
   const defaultColors = [
     "#5470c6",
     "#91cc75",
@@ -49,7 +51,7 @@ export function LineChart(props: LineChartProps) {
       trigger: "axis",
     },
     legend: props.showLegend !== false
-      ? { bottom: 0, type: "scroll" }
+      ? { bottom: 0, type: "scroll", textStyle: { color: ct.legendText } }
       : { show: false },
     grid: {
       left: "3%",
@@ -65,14 +67,18 @@ export function LineChart(props: LineChartProps) {
       name: props.xAxisLabel,
       nameLocation: "middle",
       nameGap: 30,
-      axisLine: { lineStyle: { color: "#e0e0e0" } },
+      nameTextStyle: { color: ct.axisLabel },
+      axisLine: { lineStyle: { color: ct.axisLine } },
+      axisLabel: { color: ct.axisLabel },
     },
     yAxis: {
       type: "value",
       name: props.yAxisLabel,
       nameLocation: "middle",
       nameGap: 40,
-      splitLine: { lineStyle: { color: "#f0f0f0" } },
+      nameTextStyle: { color: ct.axisLabel },
+      splitLine: { lineStyle: { color: ct.splitLine } },
+      axisLabel: { color: ct.axisLabel },
     },
     series: seriesData,
   };

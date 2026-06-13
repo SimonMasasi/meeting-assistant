@@ -233,18 +233,18 @@ export default function DataTable(props: DataTablePropsInterface) {
                         key={column.id}
                         align={column.align ?? "left"}
                         style={{ minWidth: column.minWidth ?? 100 }}
-                        sx={{
-                          backgroundColor: "#5e8dd8",
-                          color: "#fff",
+                        sx={(theme) => ({
+                          backgroundColor: theme.palette.primary.main,
+                          color: theme.palette.primary.contrastText,
                           fontWeight: 700,
                           fontSize: "0.75rem",
                           letterSpacing: "0.06em",
                           textTransform: "uppercase",
-                          "& .MuiTableSortLabel-root": { color: "#fff" },
-                          "& .MuiTableSortLabel-root:hover": { color: "#bfdbfe" },
-                          "& .MuiTableSortLabel-root.Mui-active": { color: "#fff" },
-                          "& .MuiTableSortLabel-icon": { color: "#fff !important" },
-                        }}
+                          "& .MuiTableSortLabel-root": { color: theme.palette.primary.contrastText },
+                          "& .MuiTableSortLabel-root:hover": { color: theme.palette.primary.light },
+                          "& .MuiTableSortLabel-root.Mui-active": { color: theme.palette.primary.contrastText },
+                          "& .MuiTableSortLabel-icon": { color: `${theme.palette.primary.contrastText} !important` },
+                        })}
                       >
                         {column.sortable && column.id !== "actions" ? (
                           <TableSortLabel
@@ -272,14 +272,16 @@ export default function DataTable(props: DataTablePropsInterface) {
                         role="checkbox"
                         tabIndex={-1}
                         key={rowIndex}
-                        sx={{
+                        sx={(theme) => ({
                           backgroundColor:
-                            rowIndex % 2 !== 0 ? "#f8fafc" : "#ffffff",
+                            rowIndex % 2 !== 0
+                              ? theme.palette.action.hover
+                              : theme.palette.background.paper,
                           "&:hover": {
-                            backgroundColor: "#eff6ff !important",
+                            backgroundColor: `${theme.palette.action.selected} !important`,
                           },
                           transition: "background-color 0.15s ease",
-                        }}
+                        })}
                       >
                         {props.columns.map((column) => {
                           const value =
@@ -323,7 +325,7 @@ export default function DataTable(props: DataTablePropsInterface) {
                             gap: 1,
                           }}
                         >
-                          <InboxIcon sx={{ fontSize: 52, color: "#cbd5e1" }} />
+                          <InboxIcon sx={(theme) => ({ fontSize: 52, color: theme.palette.action.disabled })} />
                           <Typography
                             variant="subtitle1"
                             fontWeight={600}

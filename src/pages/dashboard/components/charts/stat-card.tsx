@@ -18,15 +18,15 @@ export function StatCard(props: StatCardProps) {
   const hasChange = props.change !== undefined;
 
   return (
-    <div className="min-w-0 break-words bg-white shadow-lg rounded-2xl bg-clip-border hover:shadow-xl transition-shadow duration-200">
+    <div className="min-w-0 break-words bg-white dark:bg-slate-800 shadow-lg dark:shadow-dark-xl rounded-2xl bg-clip-border hover:shadow-xl transition-shadow duration-200">
       <div className="flex-auto p-5">
         {/* Top row: label + icon */}
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               {props.title}
             </p>
-            <h3 className="text-3xl font-bold text-slate-800 leading-tight">
+            <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-100 leading-tight">
               {props.value}
             </h3>
           </div>
@@ -46,8 +46,8 @@ export function StatCard(props: StatCardProps) {
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                   isPositive
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
                 }`}
               >
                 {isPositive ? (
@@ -59,10 +59,10 @@ export function StatCard(props: StatCardProps) {
               </span>
             )}
             {props.changeLabel && (
-              <span className="text-xs text-slate-400">{props.changeLabel}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">{props.changeLabel}</span>
             )}
             {props.footer && !props.changeLabel && (
-              <span className="text-xs text-slate-400">{props.footer}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">{props.footer}</span>
             )}
           </div>
         )}

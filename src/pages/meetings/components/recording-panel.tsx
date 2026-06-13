@@ -254,10 +254,10 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-5">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-700">
-          <MicNoneOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500" />
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+          <MicNoneOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
           <h2 className="text-base font-bold">Live Recording</h2>
         </div>
         {recording ? (
@@ -266,17 +266,17 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
             REC {formatElapsed(elapsed)}
           </span>
         ) : (
-          <span className="text-xs font-medium text-slate-400">Idle</span>
+          <span className="text-xs font-medium text-slate-400 dark:text-slate-500">Idle</span>
         )}
       </div>
 
-      <p className="mt-1.5 text-sm text-slate-500">
+      <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
         Capture the room audio for this in-person meeting straight from your
         microphone.
       </p>
 
       {/* Live waveform — bars rise with the mic level and ease back on quiet. */}
-      <div className="mt-4 flex items-center justify-center gap-1.5 h-16 rounded-xl bg-slate-50">
+      <div className="mt-4 flex items-center justify-center gap-1.5 h-16 rounded-xl bg-slate-50 dark:bg-slate-800">
         {BAR_WEIGHTS.map((weight, i) => {
           // Map the 0..1 level to a bar height, leaving a small idle baseline so
           // the bars stay visible (flat) when there's no sound.
@@ -287,7 +287,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
             <div
               key={i}
               className={`w-1.5 rounded-full transition-[height] duration-100 ease-out ${
-                recording ? "bg-red-500" : "bg-slate-300"
+                recording ? "bg-red-500" : "bg-slate-300 dark:bg-slate-600"
               }`}
               style={{ height: `${height}px` }}
             />
@@ -297,7 +297,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
 
       {!blocked && devices.length > 0 && (
         <div className="mt-4">
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
             Microphone
           </label>
           <Select
@@ -306,16 +306,20 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
             disabled={recording || busy}
             fullWidth
             size="small"
-            sx={{
+            sx={(theme) => ({
               borderRadius: "12px",
               fontSize: "0.875rem",
-              backgroundColor: "#f8fafc",
-              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#e2e8f0" },
-              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#cbd5e1" },
+              backgroundColor: theme.palette.mode === "dark" ? "#0f172a" : "#f8fafc",
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: theme.palette.mode === "dark" ? "#334155" : "#e2e8f0",
+              },
+              "&:hover .MuiOutlinedInput-notchedOutline": {
+                borderColor: theme.palette.mode === "dark" ? "#475569" : "#cbd5e1",
+              },
               "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                 borderColor: "#3b82f6",
               },
-            }}
+            })}
           >
             {devices.map((d) => (
               <MenuItem key={d.name} value={d.name} sx={{ fontSize: "0.875rem" }}>
@@ -338,7 +342,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
           >
             <span
               className={`mt-0.5 flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                transcribe ? "bg-primary-600" : "bg-slate-300"
+                transcribe ? "bg-primary-600" : "bg-slate-300 dark:bg-slate-600"
               }`}
             >
               <span
@@ -348,10 +352,10 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
               />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-700">
+              <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
                 Live transcription &amp; speaker detection
               </span>
-              <span className="block text-xs text-slate-500">
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
                 Transcribe and label who's speaking, in real time and fully
                 on-device.
                 {modelsReady === false && !transcribe
@@ -363,11 +367,11 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
 
           {download && (
             <div className="mt-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>Downloading {download.file}…</span>
                 <span>{download.pct}%</span>
               </div>
-              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                 <div
                   className="h-full rounded-full bg-primary-600 transition-[width]"
                   style={{ width: `${download.pct}%` }}
@@ -378,7 +382,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
 
           {!download && status && (
             <div className="mt-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
                 {status.state !== "done" && (
                   <AutorenewIcon
                     sx={{ fontSize: 14 }}
@@ -391,7 +395,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
               {!recording &&
                 status.state === "running" &&
                 status.receivedMs > 0 && (
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                     <div
                       className="h-full rounded-full bg-primary-600 transition-[width]"
                       style={{

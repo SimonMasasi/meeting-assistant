@@ -4,7 +4,7 @@ import { SideBar } from "./side-bar";
 
 export function MainLayout() {
   return (
-    <div className="m-0 font-sans text-base antialiased font-normal leading-default bg-gray-50 h-screen text-slate-500">
+    <div className="m-0 font-sans text-base antialiased font-normal leading-default bg-gray-50 dark:bg-slate-900 h-screen text-slate-500 dark:text-slate-400">
       <div className="absolute w-full bg-blue-500 dark:hidden h-64"></div>
       <SideBar></SideBar>
         <main className="relative h-full max-h-screen overflow-y-auto transition-all duration-200 ease-in-out xl:ml-68 rounded-xl">

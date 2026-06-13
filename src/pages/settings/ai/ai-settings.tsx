@@ -144,28 +144,28 @@ export function AiSettings() {
 
   return (
     <div className="p-2">
-      <h2 className="text-lg font-semibold text-slate-700">AI Models</h2>
-      <p className="text-sm text-slate-500 mt-1">
+      <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200">AI Models</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
         Choose the provider and model used for transcription, speech and
         summarization. API keys are stored locally on this device.
       </p>
 
       {/* Summary card */}
-      <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+      <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
           <AutoAwesomeOutlinedIcon sx={{ color: "#3b82f6" }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Configured providers
           </p>
           {settings ? (
-            <p className="text-sm font-medium text-slate-700 truncate">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
               STT: {settings.stt_provider} · TTS: {settings.tts_provider} · Chat:{" "}
               {settings.chat_provider}
             </p>
           ) : (
-            <p className="text-sm font-medium text-slate-400">Loading…</p>
+            <p className="text-sm font-medium text-slate-400 dark:text-slate-500">Loading…</p>
           )}
         </div>
       </div>
@@ -178,12 +178,12 @@ export function AiSettings() {
             return (
               <div
                 key={role.prefix}
-                className="mt-5 p-4 rounded-xl bg-white border border-slate-200"
+                className="mt-5 p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
               >
-                <h3 className="text-sm font-semibold text-slate-700">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   {role.title}
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5 mb-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">
                   {role.description}
                 </p>
 
@@ -269,7 +269,7 @@ export function AiSettings() {
           </div>
         </>
       ) : (
-        <p className="mt-5 text-sm text-slate-400">Loading…</p>
+        <p className="mt-5 text-sm text-slate-400 dark:text-slate-500">Loading…</p>
       )}
     </div>
   );

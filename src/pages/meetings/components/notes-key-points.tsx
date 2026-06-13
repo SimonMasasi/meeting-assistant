@@ -20,27 +20,27 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
   return (
     <div className="space-y-4">
       {/* Section heading */}
-      <div className="flex items-center gap-2 text-slate-700">
-        <PushPinOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500" />
+      <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+        <PushPinOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
         <h2 className="text-base font-bold">Notes &amp; Key Points</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Summary + key points */}
-        <div className="lg:col-span-3 relative bg-white rounded-2xl shadow-lg p-5 flex flex-col overflow-hidden max-h-[70vh]">
+        <div className="lg:col-span-3 relative bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col overflow-hidden max-h-[70vh]">
           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <div>
-              <h3 className="text-sm font-semibold text-slate-800">Summary</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Summary</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                 {meeting.summary}
               </p>
             </div>
 
             <div className="mt-5">
-              <h3 className="text-sm font-semibold text-slate-800">Key Points</h3>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Key Points</h3>
               <ul className="mt-2 space-y-2">
                 {meeting.keyPoints.map((point, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
                     <AutoAwesomeIcon
                       sx={{ fontSize: 16 }}
                       className="mt-0.5 text-accent-500 flex-shrink-0"
@@ -60,7 +60,7 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
             </span>
             <button
               aria-label="Regenerate summary"
-              className="flex items-center justify-center w-9 h-9 rounded-full bg-white shadow hover:shadow-md text-accent-500 transition-shadow"
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-white dark:bg-slate-800 shadow hover:shadow-md text-accent-500 transition-shadow"
             >
               <LightbulbOutlinedIcon sx={{ fontSize: 20 }} />
             </button>
@@ -68,16 +68,16 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
         </div>
 
         {/* Action items */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-5 flex flex-col max-h-[70vh]">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[70vh]">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-800">Action Items</h3>
-            <span className="text-xs font-medium text-slate-400">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Action Items</h3>
+            <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
               {completed}/{items.length}
             </span>
           </div>
 
           {/* Progress bar */}
-          <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div className="mt-2 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-primary-400 to-secondary-500 transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -99,14 +99,14 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
                   ) : (
                     <RadioButtonUncheckedIcon
                       sx={{ fontSize: 20 }}
-                      className="text-slate-300 group-hover:text-slate-400 flex-shrink-0"
+                      className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 flex-shrink-0"
                     />
                   )}
                   <span
                     className={`text-sm ${
                       item.done
-                        ? "line-through text-slate-400"
-                        : "text-slate-600"
+                        ? "line-through text-slate-400 dark:text-slate-500"
+                        : "text-slate-600 dark:text-slate-300"
                     }`}
                   >
                     {item.label}

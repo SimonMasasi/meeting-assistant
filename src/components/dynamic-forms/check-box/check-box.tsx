@@ -53,7 +53,7 @@ export default function DynamicCheckBox(props: DynamicCheckBox) {
         className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer select-none transition-all duration-200 ${
           selectedValue
             ? "border-primary-500 bg-primary-50 shadow-sm"
-            : "border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50/40"
+            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary-300 hover:bg-primary-50/40"
         }`}
       >
         <Checkbox
@@ -66,7 +66,7 @@ export default function DynamicCheckBox(props: DynamicCheckBox) {
         />
         <span
           className={`text-sm font-medium ${
-            selectedValue ? "text-primary-700" : "text-slate-600"
+            selectedValue ? "text-primary-700" : "text-slate-600 dark:text-slate-300"
           }`}
         >
           {props.label}

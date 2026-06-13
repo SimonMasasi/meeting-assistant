@@ -1,4 +1,5 @@
 import ReactECharts from "echarts-for-react";
+import { useChartTheme } from "./chart-theme";
 
 export interface DonutChartData {
   value: number;
@@ -31,6 +32,7 @@ const defaultColors = [
 ];
 
 export function DonutChart(props: DonutChartProps) {
+  const ct = useChartTheme();
   const colors =
     props.colors && props.colors.length > 0 ? props.colors : defaultColors;
 
@@ -48,6 +50,7 @@ export function DonutChart(props: DonutChartProps) {
           right: "2%",
           top: "middle",
           type: "scroll",
+          textStyle: { color: ct.legendText },
         }
       : { show: false },
     series: [
@@ -62,7 +65,7 @@ export function DonutChart(props: DonutChartProps) {
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
-          borderColor: "#fff",
+          borderColor: ct.border,
           borderWidth: 2,
         },
         label: props.showLabels
@@ -76,12 +79,12 @@ export function DonutChart(props: DonutChartProps) {
                 total: {
                   fontSize: 22,
                   fontWeight: "bold",
-                  color: "#374151",
+                  color: ct.centerText,
                   lineHeight: 30,
                 },
                 sub: {
                   fontSize: 12,
-                  color: "#9ca3af",
+                  color: ct.centerSubText,
                   lineHeight: 20,
                 },
               },

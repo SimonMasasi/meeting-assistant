@@ -97,11 +97,11 @@ export function DynamicFileUpload(props: DynamicFileProps) {
           className="transition-transform duration-200 group-hover:scale-110"
         />
         <div className="text-center">
-          <p className="text-sm font-medium text-slate-600">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
             <span className="text-primary-400 font-semibold">Click to upload</span>{" "}
             or drag and drop
           </p>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
             {props.label}
             {props.required ? " *" : ""}
           </p>
@@ -110,7 +110,7 @@ export function DynamicFileUpload(props: DynamicFileProps) {
 
       {filesDrooped?.length > 0 && (
         <div className="mt-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
             Selected Files
           </p>
           <div
@@ -121,7 +121,7 @@ export function DynamicFileUpload(props: DynamicFileProps) {
             {filesDrooped.map((file, key) => (
               <div
                 key={key}
-                className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200"
+                className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-200"
               >
                 <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center overflow-hidden">
                   {checkIfFileIsImage(file?.fileName) ? (
@@ -136,13 +136,13 @@ export function DynamicFileUpload(props: DynamicFileProps) {
                     />
                   )}
                 </div>
-                <p className="text-sm font-medium text-slate-700 flex-1 truncate">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-1 truncate">
                   {file?.fileName}
                 </p>
                 <button
                   type="button"
                   onClick={() => removeFileFromList(file)}
-                  className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-150"
+                  className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-slate-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all duration-150"
                 >
                   <CloseIcon sx={{ fontSize: 14 }} />
                 </button>

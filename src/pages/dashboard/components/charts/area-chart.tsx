@@ -1,4 +1,5 @@
 import ReactECharts from "echarts-for-react";
+import { useChartTheme } from "./chart-theme";
 
 export interface AreaChartSeries {
   name: string;
@@ -29,6 +30,7 @@ const defaultPalette = [
 ];
 
 export function AreaChart(props: AreaChartProps) {
+  const ct = useChartTheme();
   const seriesData = props.series.map((s, i) => {
     const palette = defaultPalette[i % defaultPalette.length];
     const lineColor = s.color || palette.line;
@@ -65,7 +67,7 @@ export function AreaChart(props: AreaChartProps) {
       trigger: "axis",
     },
     legend: props.showLegend !== false
-      ? { bottom: 0, type: "scroll" }
+      ? { bottom: 0, type: "scroll", textStyle: { color: ct.legendText } }
       : { show: false },
     grid: {
       left: "3%",
@@ -81,14 +83,18 @@ export function AreaChart(props: AreaChartProps) {
       name: props.xAxisLabel,
       nameLocation: "middle",
       nameGap: 30,
-      axisLine: { lineStyle: { color: "#e0e0e0" } },
+      nameTextStyle: { color: ct.axisLabel },
+      axisLine: { lineStyle: { color: ct.axisLine } },
+      axisLabel: { color: ct.axisLabel },
     },
     yAxis: {
       type: "value",
       name: props.yAxisLabel,
       nameLocation: "middle",
       nameGap: 40,
-      splitLine: { lineStyle: { color: "#f0f0f0" } },
+      nameTextStyle: { color: ct.axisLabel },
+      splitLine: { lineStyle: { color: ct.splitLine } },
+      axisLabel: { color: ct.axisLabel },
     },
     series: seriesData,
   };

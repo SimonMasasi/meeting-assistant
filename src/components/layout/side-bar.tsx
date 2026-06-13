@@ -13,8 +13,8 @@ export function SideBar() {
       aria-label="Main navigation"
       className={
         sideBar
-          ? "fixed inset-y-0 flex-wrap items-center justify-between block w-full p-0 my-4 overflow-y-auto antialiased transition-transform duration-200 bg-white border-0 shadow-xl max-w-64 z-[990] xl:ml-6 rounded-2xl xl:left-0 xl:translate-x-0"
-          : "fixed inset-y-0 flex-wrap items-center justify-between block w-full p-0 my-4 overflow-y-auto antialiased transition-transform duration-200 -translate-x-full bg-white border-0 shadow-xl max-w-64 z-[990] xl:ml-6 rounded-2xl xl:left-0 xl:translate-x-0"
+          ? "fixed inset-y-0 flex-wrap items-center justify-between block w-full p-0 my-4 overflow-y-auto antialiased transition-transform duration-200 bg-white dark:bg-slate-800 border-0 shadow-xl dark:shadow-dark-xl max-w-64 z-[990] xl:ml-6 rounded-2xl xl:left-0 xl:translate-x-0"
+          : "fixed inset-y-0 flex-wrap items-center justify-between block w-full p-0 my-4 overflow-y-auto antialiased transition-transform duration-200 -translate-x-full bg-white dark:bg-slate-800 border-0 shadow-xl dark:shadow-dark-xl max-w-64 z-[990] xl:ml-6 rounded-2xl xl:left-0 xl:translate-x-0"
       }
     >
       <div className="relative h-20">
@@ -22,12 +22,12 @@ export function SideBar() {
           type="button"
           aria-label="Close sidebar"
           onClick={() => setSideBar(false)}
-          className="absolute top-0 right-0 p-4 text-slate-400 opacity-50 xl:hidden hover:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
+          className="absolute top-0 right-0 p-4 text-slate-400 dark:text-slate-500 opacity-50 xl:hidden hover:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
         >
           <Close fontSize="small" />
         </button>
         <NavLink
-          className="block px-8 py-6 m-0 text-sm whitespace-nowrap text-slate-700"
+          className="block px-8 py-6 m-0 text-sm whitespace-nowrap text-slate-700 dark:text-slate-200"
           to="/dashboard"
         >
           <img
@@ -54,8 +54,8 @@ export function SideBar() {
                   isActive
                     ? "py-2.5 text-sm my-0 mx-2 flex items-center whitespace-nowrap rounded-lg px-4 font-semibold text-primary-600 transition-colors bg-primary-500/20"
                     : isPending
-                    ? "py-2.5 text-sm my-0 mx-2 flex items-center whitespace-nowrap rounded-lg px-4 font-semibold text-slate-400 transition-colors opacity-60"
-                    : "py-2.5 text-sm my-0 mx-2 flex items-center whitespace-nowrap rounded-lg px-4 font-semibold text-slate-700 transition-colors hover:bg-gray-100"
+                    ? "py-2.5 text-sm my-0 mx-2 flex items-center whitespace-nowrap rounded-lg px-4 font-semibold text-slate-400 dark:text-slate-500 transition-colors opacity-60"
+                    : "py-2.5 text-sm my-0 mx-2 flex items-center whitespace-nowrap rounded-lg px-4 font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700"
                 }
               >
                 <div className="mr-2 flex h-8 w-8 items-center justify-center rounded-lg text-center xl:p-2.5">

@@ -34,7 +34,7 @@ const columns: DataTableColumns[] = [
     label: "Type",
     minWidth: 110,
     format: (value: string) => (
-      <span className="inline-flex items-center gap-1 text-sm text-slate-600">
+      <span className="inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
         {value === "online" ? (
           <VideocamOutlinedIcon sx={{ fontSize: 16 }} />
         ) : (
@@ -53,7 +53,7 @@ const columns: DataTableColumns[] = [
     format: (value: string) => (
       <span
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-          statusColors[value] ?? "bg-gray-100 text-gray-600"
+          statusColors[value] ?? "bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300"
         }`}
       >
         {value}
@@ -98,13 +98,13 @@ export function MeetingsMain() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Meetings</h1>
-        <p className="text-sm text-slate-400 mt-0.5">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Meetings</h1>
+        <p className="text-sm text-slate-400 dark:text-slate-500 mt-0.5">
           {meetings.length} meeting{meetings.length === 1 ? "" : "s"} · click a row to open
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden">
         <DataTableMain
           title="All Meetings"
           columns={columns}

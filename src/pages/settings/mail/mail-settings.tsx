@@ -164,29 +164,29 @@ export function MailSettings() {
 
   return (
     <div className="p-2">
-      <h2 className="text-lg font-semibold text-slate-700">Mail Settings</h2>
-      <p className="text-sm text-slate-500 mt-1">
+      <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Mail Settings</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
         Configure the outgoing mail server used to send meeting emails and
         invites. Credentials are stored locally on this device.
       </p>
 
       {/* Summary card */}
-      <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+      <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
           <MailOutlinedIcon sx={{ color: "#3b82f6" }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Outgoing mail
           </p>
           {isConfigured ? (
-            <p className="text-sm font-medium text-slate-700 truncate">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
               {settings?.sender_email}{" "}
-              <span className="text-slate-400">·</span> {settings?.smtp_host}
+              <span className="text-slate-400 dark:text-slate-500">·</span> {settings?.smtp_host}
               {settings?.smtp_port ? `:${settings.smtp_port}` : ""}
             </p>
           ) : (
-            <p className="text-sm font-medium text-slate-400">
+            <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
               Not configured yet
             </p>
           )}
@@ -199,8 +199,8 @@ export function MailSettings() {
       </div>
 
       {/* Settings form */}
-      <div className="mt-5 p-4 rounded-xl bg-white border border-slate-200">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4">
+      <div className="mt-5 p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">
           SMTP Configuration
         </h3>
         {settings ? (
@@ -210,7 +210,7 @@ export function MailSettings() {
             handleSubmit={handleSubmit}
           />
         ) : (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
         )}
       </div>
     </div>

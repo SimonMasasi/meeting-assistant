@@ -9,8 +9,8 @@ const tagStyles = [
 
 export function MeetingObjective({ meeting }: { meeting: MeetingDetail }) {
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col max-h-[60vh]">
-      <h2 className="text-2xl font-bold text-slate-800">Notes</h2>
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[60vh]">
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Notes</h2>
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">
       {/* Tags */}
@@ -28,14 +28,14 @@ export function MeetingObjective({ meeting }: { meeting: MeetingDetail }) {
       </div>
 
       {/* Objective */}
-      <div className="mt-4 rounded-xl bg-gradient-to-br from-primary-50 to-secondary-50 p-4">
-        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+      <div className="mt-4 rounded-xl bg-gradient-to-br from-primary-50 to-secondary-50 dark:from-slate-700 dark:to-slate-700 p-4">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
           Objective
           <span className="w-1.5 h-1.5 rounded-full bg-secondary-400" />
         </h3>
         <div className="mt-2 flex items-start gap-2">
           <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-success-400 flex-shrink-0" />
-          <p className="text-sm leading-relaxed text-slate-600">
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             {meeting.objective}
           </p>
         </div>

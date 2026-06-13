@@ -73,7 +73,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
 
   if (showForgot) {
     return (
-      <div className="bg-white rounded-3xl shadow-xl px-8 py-10">
+      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl px-8 py-10">
         <ForgotPassword
           initialEmail={email}
           onBack={() => setShowForgot(false)}
@@ -83,7 +83,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
   }
 
   return (
-    <div className="bg-white rounded-3xl shadow-xl px-8 py-10">
+    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl px-8 py-10">
 
       {/* Logo */}
       <div className="flex justify-center mb-5">
@@ -96,24 +96,24 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
           type="button"
           onClick={onBack}
           aria-label="Go back"
-          className="absolute left-0 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+          className="absolute left-0 p-1.5 rounded-lg text-neutral-400 dark:text-slate-500 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
         >
           <ArrowBackIcon className="login-icon-md" />
         </button>
         <h1 className="text-2xl font-bold text-neutral-900">{cfg.heading}</h1>
       </div>
-      <p className="text-sm text-neutral-500 text-center mt-1 mb-7">{cfg.subtext}</p>
+      <p className="text-sm text-neutral-500 dark:text-slate-400 text-center mt-1 mb-7">{cfg.subtext}</p>
 
       {/* Form */}
       <form onSubmit={handleSubmit} noValidate className={`space-y-4${isLoading ? ' pointer-events-none' : ''}`}>
 
         {/* Email */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-1.5">
+          <label htmlFor="email" className="block text-sm font-medium text-neutral-700 dark:text-slate-200 mb-1.5">
             Email address
           </label>
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400 dark:text-slate-500">
               <EmailOutlinedIcon className="login-icon-sm" />
             </span>
             <input
@@ -125,7 +125,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
               placeholder="you@example.com"
               required
               disabled={isLoading}
-              className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-xl text-sm text-neutral-800 placeholder-neutral-400 bg-neutral-50 focus:bg-white focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition disabled:opacity-50"
+              className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 dark:border-slate-700 rounded-xl text-sm text-neutral-800 dark:text-slate-200 placeholder-neutral-400 dark:placeholder-slate-500 bg-neutral-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition disabled:opacity-50"
             />
           </div>
         </div>
@@ -133,7 +133,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
         {/* Password */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
+              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 dark:text-slate-200">
               Password
             </label>
             {mode === 'signin' && (
@@ -147,7 +147,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
             )}
           </div>
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400 dark:text-slate-500">
               <LockOutlinedIcon className="login-icon-sm" />
             </span>
             <input
@@ -159,13 +159,13 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
               placeholder={cfg.passwordPlaceholder}
               required
               disabled={isLoading}
-              className="w-full pl-10 pr-11 py-2.5 border border-neutral-200 rounded-xl text-sm text-neutral-800 placeholder-neutral-400 bg-neutral-50 focus:bg-white focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition disabled:opacity-50"
+              className="w-full pl-10 pr-11 py-2.5 border border-neutral-200 dark:border-slate-700 rounded-xl text-sm text-neutral-800 dark:text-slate-200 placeholder-neutral-400 dark:placeholder-slate-500 bg-neutral-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition disabled:opacity-50"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute inset-y-0 right-3.5 flex items-center text-neutral-400 hover:text-neutral-600 transition-colors"
+              className="absolute inset-y-0 right-3.5 flex items-center text-neutral-400 dark:text-slate-500 hover:text-neutral-600 transition-colors"
             >
               {showPassword
                 ? <VisibilityOffOutlinedIcon className="login-icon-sm" />
@@ -196,7 +196,7 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
       </form>
 
       {/* Toggle mode */}
-      <p className="text-xs text-neutral-500 text-center mt-6">
+      <p className="text-xs text-neutral-500 dark:text-slate-400 text-center mt-6">
         {cfg.togglePrompt}
         <button
           type="button"

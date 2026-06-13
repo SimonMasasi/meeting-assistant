@@ -1,4 +1,5 @@
 import ReactECharts from "echarts-for-react";
+import { useChartTheme } from "./chart-theme";
 
 export interface PieChartData {
   value: number;
@@ -32,6 +33,7 @@ const defaultColors = [
 ];
 
 export function PieChart(props: PieChartProps) {
+  const ct = useChartTheme();
   const colors =
     props.colors && props.colors.length > 0 ? props.colors : defaultColors;
 
@@ -42,7 +44,7 @@ export function PieChart(props: PieChartProps) {
       formatter: "{b}: {c} ({d}%)",
     },
     legend: props.showLegend !== false
-      ? { bottom: 0, type: "scroll" }
+      ? { bottom: 0, type: "scroll", textStyle: { color: ct.legendText } }
       : { show: false },
     series: [
       {
@@ -55,13 +57,14 @@ export function PieChart(props: PieChartProps) {
         avoidLabelOverlap: props.avoidLabelOverlap ?? true,
         itemStyle: {
           borderRadius: 4,
-          borderColor: "#fff",
+          borderColor: ct.border,
           borderWidth: 2,
         },
         label: {
           show: props.showLabels !== false,
           position: props.labelsPosition || "outside",
           formatter: "{b}: {d}%",
+          color: ct.axisLabel,
         },
         labelLine: {
           show: props.showLabelLine !== false,

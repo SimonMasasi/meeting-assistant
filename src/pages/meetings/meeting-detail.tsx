@@ -22,10 +22,10 @@ export function MeetingDetailPage() {
   if (!meeting) {
     return (
       <div className="p-4 md:p-6">
-        <div className="bg-white rounded-2xl shadow-lg p-10 flex flex-col items-center text-center gap-3">
-          <SearchOffIcon sx={{ fontSize: 52 }} className="text-slate-300" />
-          <h2 className="text-lg font-bold text-slate-700">Meeting not found</h2>
-          <p className="text-sm text-slate-400">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-10 flex flex-col items-center text-center gap-3">
+          <SearchOffIcon sx={{ fontSize: 52 }} className="text-slate-300 dark:text-slate-600" />
+          <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200">Meeting not found</h2>
+          <p className="text-sm text-slate-400 dark:text-slate-500">
             We couldn't find a meeting with id “{id}”.
           </p>
           <button
@@ -43,7 +43,7 @@ export function MeetingDetailPage() {
     <div className="p-4 md:p-6 space-y-4">
       <button
         onClick={() => navigate("/main/meetings")}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
       >
         <ArrowBackIcon sx={{ fontSize: 18 }} />
         Back to meetings
@@ -51,10 +51,10 @@ export function MeetingDetailPage() {
 
       {/* Page heading: meeting name + date details */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100">
           {meeting.title}
         </h1>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
           <span className="inline-flex items-center gap-1.5">
             <CalendarTodayOutlinedIcon sx={{ fontSize: 15 }} />
             {meeting.date}, {meeting.time}
