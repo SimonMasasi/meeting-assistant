@@ -39,13 +39,29 @@ struct ActiveRecording {
 #[derive(Default)]
 pub struct RecordingState(Mutex<Option<ActiveRecording>>);
 
-/// A reference to a finished recording, returned to the frontend.
+impl RecordingState {
+    /// Whether a capture is currently in progress. The recordings-management
+    /// commands use this to refuse deleting or merging files while one is still
+    /// being written.
+    pub fn is_active(&self) -> bool {
+        self.0.lock().unwrap().is_some()
+    }
+}
+
+/// A reference to a finished recording, returned to the frontend. Also returned
+/// by the recordings management commands in `commands::recordings`.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SavedRecording {
     pub id: String,
     pub file_name: String,
     pub path: String,
     pub size: u64,
+    /// Playback length in seconds, computed from the WAV header when a recording
+    /// is listed. `None` for a just-finished recording (the UI doesn't need it
+    /// then) or when the file can't be read. Never persisted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_secs: Option<f64>,
 }
 
 /// An available audio input device, surfaced to the frontend so the user can
@@ -191,6 +207,7 @@ pub async fn stop_recording(
         file_name,
         path: active.path.to_string_lossy().to_string(),
         size,
+        duration_secs: None,
     };
 
     let pool = pool(&app).await?;

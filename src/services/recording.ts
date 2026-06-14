@@ -6,6 +6,8 @@ export interface SavedRecording {
   fileName: string;
   path: string;
   size: number;
+  /** Playback length in seconds, present when a recording is listed. */
+  durationSecs?: number;
 }
 
 export interface MicrophoneDevice {
@@ -44,6 +46,38 @@ export function stopRecording(): Promise<SavedRecording> {
 /** Whether a recording is currently in progress (e.g. to restore UI state). */
 export function isRecording(): Promise<boolean> {
   return invoke<boolean>("is_recording");
+}
+
+/**
+ * List every saved recording for a meeting, in capture order. Each entry's
+ * `durationSecs` is read from the WAV header (omitted if the file is unreadable).
+ */
+export function listMeetingRecordings(
+  meetingId: string,
+): Promise<SavedRecording[]> {
+  return invoke<SavedRecording[]>("list_meeting_recordings", { meetingId });
+}
+
+/**
+ * Delete a single recording: its file and DB row are removed, and any transcript
+ * lines that came from it have their recording link cleared (the lines are kept).
+ * Rejects if a recording is currently in progress.
+ */
+export function deleteRecording(id: string): Promise<void> {
+  return invoke<void>("delete_recording", { id });
+}
+
+/**
+ * Merge two or more of a meeting's recordings into one combined file (in capture
+ * order) and delete the originals. Resolves with the merged recording. Rejects on
+ * fewer than two ids or while a recording is in progress; the originals are only
+ * removed once the merged file has been written successfully.
+ */
+export function mergeRecordings(
+  meetingId: string,
+  ids: string[],
+): Promise<SavedRecording> {
+  return invoke<SavedRecording>("merge_recordings", { meetingId, ids });
 }
 
 /**
