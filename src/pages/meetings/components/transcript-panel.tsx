@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   getTranscript,
   onTranscriptLine,
@@ -54,19 +56,39 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
     };
   }, [meeting.id]);
 
-  const rename = useCallback(
+  // Inline speaker-name editing. We key the open editor off the clicked line's
+  // id, but the rename itself applies to the whole speaker cluster (by label).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+
+  const startEdit = useCallback((seg: TranscriptSegment) => {
+    setEditingId(seg.id);
+    setDraftName(seg.speakerName ?? seg.speakerLabel);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setDraftName("");
+  }, []);
+
+  const saveEdit = useCallback(
     async (seg: TranscriptSegment) => {
+      const next = draftName.trim();
       const current = seg.speakerName ?? seg.speakerLabel;
-      const next = window.prompt(`Rename "${current}"`, current)?.trim();
-      if (!next || next === current) return;
+      if (!next || next === current) {
+        cancelEdit();
+        return;
+      }
       try {
         await renameSpeaker(meeting.id, seg.speakerLabel, next);
         load();
       } catch {
         /* surfaced elsewhere; keep the UI responsive */
+      } finally {
+        cancelEdit();
       }
     },
-    [meeting.id, load],
+    [draftName, meeting.id, load, cancelEdit],
   );
 
   const hasLive = segments.length > 0;
@@ -105,17 +127,55 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => rename(seg)}
-                        title="Rename speaker"
-                        className="group inline-flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:text-primary-600"
-                      >
-                        {line.speaker}
-                        <EditOutlinedIcon
-                          sx={{ fontSize: 13 }}
-                          className="opacity-0 group-hover:opacity-100 text-slate-400 dark:text-slate-500"
-                        />
-                      </button>
+                      {editingId === seg.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <input
+                            autoFocus
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEdit(seg);
+                              else if (e.key === "Escape") cancelEdit();
+                            }}
+                            onBlur={() => saveEdit(seg)}
+                            aria-label="Speaker name"
+                            className="w-36 px-2 py-0.5 rounded-md border border-primary-400 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-400/40"
+                          />
+                          <button
+                            // onMouseDown so this fires before the input's onBlur.
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              saveEdit(seg);
+                            }}
+                            title="Save name"
+                            className="p-0.5 rounded text-success-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                          >
+                            <CheckIcon sx={{ fontSize: 16 }} />
+                          </button>
+                          <button
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              cancelEdit();
+                            }}
+                            title="Cancel"
+                            className="p-0.5 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                          >
+                            <CloseIcon sx={{ fontSize: 16 }} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => startEdit(seg)}
+                          title="Rename speaker"
+                          className="group inline-flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:text-primary-600"
+                        >
+                          {line.speaker}
+                          <EditOutlinedIcon
+                            sx={{ fontSize: 13 }}
+                            className="opacity-0 group-hover:opacity-100 text-slate-400 dark:text-slate-500"
+                          />
+                        </button>
+                      )}
                       <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                         {line.timestamp}
                       </span>

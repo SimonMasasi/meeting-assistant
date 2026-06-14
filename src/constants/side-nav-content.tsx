@@ -1,4 +1,4 @@
-import { Person, Settings , Dashboard, Groups } from "@mui/icons-material"
+import { Settings , Dashboard, Groups } from "@mui/icons-material"
 import { SideNavInterface } from "../interfaces/shared-interfaces"
 
 export const sideNavContent:SideNavInterface[] = [
@@ -17,9 +17,4 @@ export const sideNavContent:SideNavInterface[] = [
         to:"settings",
         icon: <Settings className="text-primary-500"/>
     },
-    {
-        title: "User Management",
-        to:"user-management",
-        icon: <Person className="text-primary-500"/>
-    }
 ]
