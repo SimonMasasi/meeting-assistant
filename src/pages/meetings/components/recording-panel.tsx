@@ -63,7 +63,13 @@ function formatSize(bytes: number): string {
   return `${(kb / 1024).toFixed(1)} MB`;
 }
 
-export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
+export function RecordingPanel({
+  meeting,
+  onRecordingsChanged,
+}: {
+  meeting: MeetingDetail;
+  onRecordingsChanged?: () => void;
+}) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [saved, setSaved] = useState<SavedRecording | null>(null);
@@ -218,6 +224,8 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
       );
       setElapsed(0);
       setRecording(true);
+      // Let the saved-recordings list reflect the now-active recording.
+      onRecordingsChanged?.();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -246,6 +254,8 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
       const result = await stopRecording();
       setSaved(result);
       setRecording(false);
+      // Surface the freshly saved file in the saved-recordings list immediately.
+      onRecordingsChanged?.();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -254,7 +264,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5">
+    <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 transition-shadow duration-300 hover:shadow-xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
           <MicNoneOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
@@ -366,7 +376,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
           </button>
 
           {download && (
-            <div className="mt-2">
+            <div className="mt-2 animate-fade-in">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>Downloading {download.file}…</span>
                 <span>{download.pct}%</span>
@@ -381,7 +391,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
           )}
 
           {!download && status && (
-            <div className="mt-2">
+            <div className="mt-2 animate-fade-in">
               <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
                 {status.state !== "done" && (
                   <AutorenewIcon
@@ -413,7 +423,7 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
       )}
 
       {blocked && !recording && (
-        <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-amber-50 px-3 py-2.5 text-sm">
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-amber-50 px-3 py-2.5 text-sm animate-fade-in">
           <LockOutlinedIcon
             sx={{ fontSize: 18 }}
             className="mt-0.5 text-amber-600 flex-shrink-0"
@@ -465,13 +475,13 @@ export function RecordingPanel({ meeting }: { meeting: MeetingDetail }) {
       )}
 
       {error && (
-        <p className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+        <p className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 animate-fade-in">
           {error}
         </p>
       )}
 
       {saved && (
-        <div className="mt-3 flex items-center gap-2.5 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm">
+        <div className="mt-3 flex items-center gap-2.5 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm animate-fade-in-up">
           <AudiotrackOutlinedIcon
             sx={{ fontSize: 18 }}
             className="text-emerald-600 flex-shrink-0"

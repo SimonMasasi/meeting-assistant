@@ -7,7 +7,9 @@
 //! assigns a speaker via online clustering, transcribes the words, persists a
 //! `transcripts` row, and emits a `transcript-line` event for the live UI.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 
 use serde::Serialize;
 use sherpa_rs::{
@@ -71,12 +73,28 @@ pub fn run(
     channels: u16,
     models: ModelPaths,
     rx: Receiver<Vec<f32>>,
+    captured: Arc<AtomicU64>,
 ) {
     emit_status(&app, "loading", 0, 0);
-    if let Err(e) = run_inner(&app, &meeting_id, recording_id, input_rate, channels, models, rx) {
+    if let Err(e) = run_inner(
+        &app,
+        &meeting_id,
+        recording_id,
+        input_rate,
+        channels,
+        models,
+        rx,
+        &captured,
+    ) {
         eprintln!("transcription pipeline error: {e}");
         let _ = app.emit("transcription-error", e.to_string());
     }
+    // Always signal completion so the UI's "Finishing transcription…" indicator
+    // clears even if the flush above errored before reaching its own "done" emit.
+    // A duplicate "done" on the success path is harmless (the UI just re-arms its
+    // brief "Transcript ready" clear timer).
+    let total = (captured.load(Ordering::Relaxed) * 1000 / input_rate as u64) as i64;
+    emit_status(&app, "done", total, total);
 }
 
 /// Emit a `transcription-status` update. `received`/`processed` are sample-domain
@@ -101,6 +119,7 @@ fn run_inner(
     channels: u16,
     models: ModelPaths,
     rx: Receiver<Vec<f32>>,
+    captured: &AtomicU64,
 ) -> Result<()> {
     let path = |p: &std::path::Path| p.to_string_lossy().to_string();
 
@@ -155,12 +174,14 @@ fn run_inner(
     let mut pending = Vec::<f32>::new();
 
     // Wall-clock audio accounting, used to drive the status/backlog indicator.
-    // `received` counts mono frames at the input rate; `processed` counts 16 kHz
-    // samples actually fed to the VAD. Both convert to the same ms of audio.
-    let mut received_frames: u64 = 0;
+    // `received` is read from the shared `captured` counter the capture thread
+    // bumps as audio is recorded (mono frames at the input rate) — so it reflects
+    // everything still queued in the channel, not just what this worker has
+    // dequeued. `processed` counts 16 kHz samples actually fed to the VAD. The gap
+    // between them is the true backlog the worker must still drain.
     let mut processed_16k: u64 = 0;
     let mut last_emit_16k: u64 = 0;
-    let received_ms = |frames: u64| (frames * 1000 / input_rate as u64) as i64;
+    let received_ms = || (captured.load(Ordering::Relaxed) * 1000 / input_rate as u64) as i64;
     let processed_ms = |s: u64| (s * 1000 / TARGET_RATE as u64) as i64;
     emit_status(app, "running", 0, 0);
 
@@ -168,7 +189,6 @@ fn run_inner(
     // full VAD window as audio arrives.
     for interleaved in rx.iter() {
         let mono = downmix(&interleaved, channels);
-        received_frames += mono.len() as u64;
         resampler.push(&mono, &mut pending)?;
         processed_16k += drain_windows(
             &mut pending,
@@ -187,16 +207,17 @@ fn run_inner(
             emit_status(
                 app,
                 "running",
-                received_ms(received_frames),
+                received_ms(),
                 processed_ms(processed_16k),
             );
         }
     }
 
     // Recording stopped: pad with trailing silence so the VAD closes the final
-    // utterance, then flush whatever remains.
+    // utterance, then flush whatever remains. The consumed-sample count isn't
+    // needed here — the "done" status below reports the backlog fully cleared.
     pending.extend(std::iter::repeat(0.0).take(TARGET_RATE as usize / 2));
-    processed_16k += drain_windows(
+    drain_windows(
         &mut pending,
         &mut vad,
         &mut recognizer,
@@ -204,10 +225,10 @@ fn run_inner(
         &mut manager,
         &mut speaker_counter,
         &mut |seg| persist_and_emit(app, &pool, meeting_id, &recording_id, &mut seq, seg),
-    )? as u64;
+    )?;
 
     // Caught up: report the backlog cleared and the worker finished.
-    let total = received_ms(received_frames);
+    let total = received_ms();
     emit_status(app, "done", total, total);
     Ok(())
 }

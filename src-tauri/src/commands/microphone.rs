@@ -8,7 +8,7 @@
 //! `stop_recording`.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -295,6 +295,12 @@ fn capture(
     )))));
     let config: cpal::StreamConfig = supported.config();
 
+    // Total mono frames captured so far, bumped by the audio callback as audio is
+    // recorded. The transcription worker reads this to measure how much audio is
+    // still queued ahead of it (its real backlog), so the "Finishing transcription…"
+    // countdown reflects the channel queue rather than just the current chunk.
+    let captured = Arc::new(AtomicU64::new(0));
+
     // Live transcription tee: when enabled and the models are already present,
     // hand each callback's samples to a worker thread that resamples, diarizes,
     // and transcribes in real time. The WAV path below is untouched — this only
@@ -313,6 +319,7 @@ fn capture(
                     .to_string();
                 let recording_id = format!("{meeting_id}-{file_name}");
                 let app = app.clone();
+                let worker_captured = captured.clone();
                 let handle = std::thread::spawn(move || {
                     crate::diarize::pipeline::run(
                         app,
@@ -322,6 +329,7 @@ fn capture(
                         channels,
                         models,
                         rx,
+                        worker_captured,
                     );
                 });
                 (Some(tx), Some(handle))
@@ -349,22 +357,23 @@ fn capture(
     // A clone of the tee sender owned by the audio callback; the original stays
     // in this function so the channel only closes once recording fully stops.
     let t = tee.clone();
+    let c = captured.clone();
     let stream = match sample_format {
         cpal::SampleFormat::F32 => device.build_input_stream(
             &config,
-            move |data: &[f32], _: &_| write_samples(data, &w, &p, t.as_ref(), |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
+            move |data: &[f32], _: &_| write_samples(data, &w, &p, t.as_ref(), &c, channels, |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
             err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => device.build_input_stream(
             &config,
-            move |data: &[i16], _: &_| write_samples(data, &w, &p, t.as_ref(), |s| s),
+            move |data: &[i16], _: &_| write_samples(data, &w, &p, t.as_ref(), &c, channels, |s| s),
             err_fn,
             None,
         ),
         cpal::SampleFormat::U16 => device.build_input_stream(
             &config,
-            move |data: &[u16], _: &_| write_samples(data, &w, &p, t.as_ref(), |s| (s as i32 - 32768) as i16),
+            move |data: &[u16], _: &_| write_samples(data, &w, &p, t.as_ref(), &c, channels, |s| (s as i32 - 32768) as i16),
             err_fn,
             None,
         ),
@@ -423,8 +432,14 @@ fn write_samples<T: Copy>(
     writer: &SharedWriter,
     peak: &AtomicU32,
     tee: Option<&mpsc::Sender<Vec<f32>>>,
+    captured: &AtomicU64,
+    channels: u16,
     to_i16: impl Fn(T) -> i16,
 ) {
+    // Account for the audio captured this callback in mono frames (matching the
+    // worker's `downmix` accounting), so it can measure how far behind it is.
+    captured.fetch_add((data.len() / channels.max(1) as usize) as u64, Ordering::Relaxed);
+
     let mut buffer_peak = 0.0f32;
     let mut tee_buf = if tee.is_some() {
         Vec::with_capacity(data.len())

@@ -9,7 +9,7 @@ const tagStyles = [
 
 export function MeetingObjective({ meeting }: { meeting: MeetingDetail }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[60vh]">
+    <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[60vh] transition-shadow duration-300 hover:shadow-xl">
       <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Notes</h2>
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">

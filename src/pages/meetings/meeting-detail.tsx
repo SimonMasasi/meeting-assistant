@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAtomValue } from "jotai";
 import { useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -7,7 +8,6 @@ import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { meetingsAtom } from "@/atoms/meetings-atoms";
 import { getMeetingById } from "./mock-data";
-import { MeetingHeader } from "./components/meeting-header";
 import { NotesKeyPoints } from "./components/notes-key-points";
 import { MeetingObjective } from "./components/meeting-objective";
 import { TranscriptPanel } from "./components/transcript-panel";
@@ -20,10 +20,14 @@ export function MeetingDetailPage() {
   const meetings = useAtomValue(meetingsAtom);
   const meeting = getMeetingById(meetings, id);
 
+  // Bumped whenever the recorder starts/stops so the saved-recordings list
+  // (a sibling of the recorder) re-fetches and shows the new file right away.
+  const [recordingsVersion, setRecordingsVersion] = useState(0);
+
   if (!meeting) {
     return (
       <div className="p-4 md:p-6">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-10 flex flex-col items-center text-center gap-3">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-10 flex flex-col items-center text-center gap-3 animate-scale-in">
           <SearchOffIcon sx={{ fontSize: 52 }} className="text-slate-300 dark:text-slate-600" />
           <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200">Meeting not found</h2>
           <p className="text-sm text-slate-400 dark:text-slate-500">
@@ -44,14 +48,14 @@ export function MeetingDetailPage() {
     <div className="p-4 md:p-6 space-y-4">
       <button
         onClick={() => navigate("/main/meetings")}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+        className="intro-y inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
       >
         <ArrowBackIcon sx={{ fontSize: 18 }} />
         Back to meetings
       </button>
 
       {/* Page heading: meeting name + date details */}
-      <div>
+      <div className="intro-y">
         <h1 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100">
           {meeting.title}
         </h1>
@@ -80,10 +84,12 @@ export function MeetingDetailPage() {
 
         {/* Right (secondary): recording controls, objective + small playback */}
         <div className="xl:col-span-1 space-y-6">
-          <RecordingPanel meeting={meeting} />
-          <RecordingsList meeting={meeting} />
+          <RecordingPanel
+            meeting={meeting}
+            onRecordingsChanged={() => setRecordingsVersion((v) => v + 1)}
+          />
+          <RecordingsList meeting={meeting} refreshSignal={recordingsVersion} />
           <MeetingObjective meeting={meeting} />
-          <MeetingHeader meeting={meeting} />
         </div>
       </div>
     </div>

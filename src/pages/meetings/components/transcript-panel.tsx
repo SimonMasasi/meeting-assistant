@@ -95,7 +95,7 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
   const labelOrder = labelOrderOf(segments);
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col min-h-0 max-h-[70vh]">
+    <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col min-h-0 max-h-[70vh] transition-shadow duration-300 hover:shadow-xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Transcript</h2>
@@ -106,7 +106,7 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
       </div>
 
       {/* Status banner */}
-      <div className="mt-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-secondary-500 to-success-400 shadow">
+      <div className="mt-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-secondary-500 to-success-400 shadow animate-fade-in">
         <AutoAwesomeIcon sx={{ fontSize: 16 }} />
         {hasLive
           ? "Speakers detected on-device. Click a name to rename them."
@@ -119,7 +119,7 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
           ? segments.map((seg) => {
               const line = segmentToLine(seg, labelOrder);
               return (
-                <div key={line.id} className="flex gap-3">
+                <div key={line.id} className="flex gap-3 animate-fade-in-up motion-reduce:animate-none">
                   <div
                     className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white ${line.color}`}
                   >
@@ -188,7 +188,7 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
               );
             })
           : meeting.transcript.map((line) => (
-              <div key={line.id} className="flex gap-3">
+              <div key={line.id} className="flex gap-3 animate-fade-in-up motion-reduce:animate-none">
                 <div
                   className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white ${line.color}`}
                 >

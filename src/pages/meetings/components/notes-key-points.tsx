@@ -18,7 +18,7 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
     );
 
   return (
-    <div className="space-y-4">
+    <div className="intro-y space-y-4">
       {/* Section heading */}
       <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
         <PushPinOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
@@ -27,7 +27,7 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Summary + key points */}
-        <div className="lg:col-span-3 relative bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col overflow-hidden max-h-[70vh]">
+        <div className="lg:col-span-3 relative bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col overflow-hidden max-h-[70vh] transition-shadow duration-300 hover:shadow-xl">
           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <div>
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Summary</h3>
@@ -68,7 +68,7 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
         </div>
 
         {/* Action items */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[70vh]">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[70vh] transition-shadow duration-300 hover:shadow-xl">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Action Items</h3>
             <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
@@ -89,21 +89,21 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
               <li key={item.id}>
                 <button
                   onClick={() => toggle(item.id)}
-                  className="flex items-center gap-2.5 w-full text-left group"
+                  className="flex items-center gap-2.5 w-full text-left group rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
                 >
                   {item.done ? (
                     <CheckCircleIcon
                       sx={{ fontSize: 20 }}
-                      className="text-success-500 flex-shrink-0"
+                      className="text-success-500 flex-shrink-0 animate-scale-in"
                     />
                   ) : (
                     <RadioButtonUncheckedIcon
                       sx={{ fontSize: 20 }}
-                      className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 flex-shrink-0"
+                      className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 flex-shrink-0 transition-colors"
                     />
                   )}
                   <span
-                    className={`text-sm ${
+                    className={`text-sm transition-colors duration-200 ${
                       item.done
                         ? "line-through text-slate-400 dark:text-slate-500"
                         : "text-slate-600 dark:text-slate-300"

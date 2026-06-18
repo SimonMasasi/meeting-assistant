@@ -43,7 +43,13 @@ function formatDuration(secs?: number): string {
  * order) into one file on the backend and deletes the originals; this card just
  * drives that flow and refreshes from the database afterward.
  */
-export function RecordingsList({ meeting }: { meeting: MeetingDetail }) {
+export function RecordingsList({
+  meeting,
+  refreshSignal,
+}: {
+  meeting: MeetingDetail;
+  refreshSignal?: number;
+}) {
   const [recordings, setRecordings] = useState<SavedRecording[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -73,9 +79,11 @@ export function RecordingsList({ meeting }: { meeting: MeetingDetail }) {
     }
   }, [meeting.id]);
 
+  // Reload on mount and whenever the parent bumps refreshSignal (e.g. after the
+  // recorder starts or stops), so a newly saved file shows without a manual refresh.
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshSignal]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -125,7 +133,7 @@ export function RecordingsList({ meeting }: { meeting: MeetingDetail }) {
   const canMerge = selected.size >= 2 && !recordingActive && !merging;
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5">
+    <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 transition-shadow duration-300 hover:shadow-xl">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
           Saved recordings
@@ -163,7 +171,7 @@ export function RecordingsList({ meeting }: { meeting: MeetingDetail }) {
             return (
               <li
                 key={rec.id}
-                className="rounded-xl border border-slate-100 dark:border-slate-700 px-2.5 py-2"
+                className="rounded-xl border border-slate-100 dark:border-slate-700 px-2.5 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40"
               >
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -215,7 +223,7 @@ export function RecordingsList({ meeting }: { meeting: MeetingDetail }) {
 
                 {isPlaying && (
                   <audio
-                    className="mt-2 w-full"
+                    className="mt-2 w-full animate-fade-in"
                     controls
                     autoPlay
                     src={convertFileSrc(rec.path)}
@@ -240,7 +248,7 @@ export function RecordingsList({ meeting }: { meeting: MeetingDetail }) {
       )}
 
       {error && (
-        <p className="mt-3 text-sm text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
+        <p className="mt-3 text-sm text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2 animate-fade-in">
           {error}
         </p>
       )}
