@@ -1,6 +1,7 @@
 import { Mail } from "@mui/icons-material";
 import { Folder } from "@mui/icons-material";
 import { SmartToy } from "@mui/icons-material";
+import { GraphicEq } from "@mui/icons-material";
 import { cardLayoutProps } from "../../interfaces/shared-interfaces";
 
 export const settingsNavs:cardLayoutProps[] = [
@@ -9,6 +10,11 @@ export const settingsNavs:cardLayoutProps[] = [
         name:"AI Settings",
         icon:<SmartToy></SmartToy>,
         to:"ai"
+    },
+    {
+        name:"Transcription",
+        icon:<GraphicEq></GraphicEq>,
+        to:"transcription"
     },
     {
         name:"Mail Settings",

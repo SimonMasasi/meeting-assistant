@@ -23,17 +23,22 @@ export function listMicrophones(): Promise<MicrophoneDevice[]> {
 /**
  * Start capturing a microphone into a WAV file under the meeting's storage
  * folder. `deviceName` selects the input device by name (from `listMicrophones`);
- * omit it to use the OS default. Rejects if a recording is already running or no
- * input device is available (the Rust side surfaces a readable message).
+ * omit it to use the OS default. `systemDeviceName` additionally captures system
+ * /loopback audio (e.g. remote call participants) from that input device — it is
+ * recorded to a second WAV and mixed into the live transcription. Rejects if a
+ * recording is already running or a chosen device is unavailable (the Rust side
+ * surfaces a readable message).
  */
 export function startRecording(
   meetingId: string,
   deviceName?: string,
   transcribe = false,
+  systemDeviceName?: string,
 ): Promise<void> {
   return invoke<void>("start_recording", {
     meetingId,
     deviceName: deviceName ?? null,
+    systemDeviceName: systemDeviceName ?? null,
     transcribe,
   });
 }

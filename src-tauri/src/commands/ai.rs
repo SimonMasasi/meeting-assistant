@@ -1,8 +1,9 @@
 //! Commands for reading and persisting AI model provider settings.
 //!
-//! Covers the speech-to-text, text-to-speech and chat/LLM providers, each with
-//! its own provider name, API key, model name and base URL. Stored as the
-//! single row (`id = 1`) of the `ai_settings` table.
+//! Covers the speech-to-text and chat/LLM providers, each with its own provider
+//! name, API key, model name and base URL. Stored as the single row (`id = 1`)
+//! of the `ai_settings` table. Legacy `tts_*` columns remain in the table (with
+//! their `DEFAULT ''`) but are no longer read or written.
 
 use sqlx::{Pool, Row, Sqlite};
 
@@ -16,7 +17,6 @@ use crate::settings::AiSettings;
 pub async fn fetch_ai_settings(pool: &Pool<Sqlite>) -> Result<AiSettings> {
     let row = sqlx::query(
         "SELECT stt_provider, stt_api_key, stt_model, stt_base_url,
-                tts_provider, tts_api_key, tts_model, tts_base_url,
                 chat_provider, chat_api_key, chat_model, chat_base_url
          FROM ai_settings WHERE id = 1",
     )
@@ -29,10 +29,6 @@ pub async fn fetch_ai_settings(pool: &Pool<Sqlite>) -> Result<AiSettings> {
             stt_api_key: r.get("stt_api_key"),
             stt_model: r.get("stt_model"),
             stt_base_url: r.get("stt_base_url"),
-            tts_provider: r.get("tts_provider"),
-            tts_api_key: r.get("tts_api_key"),
-            tts_model: r.get("tts_model"),
-            tts_base_url: r.get("tts_base_url"),
             chat_provider: r.get("chat_provider"),
             chat_api_key: r.get("chat_api_key"),
             chat_model: r.get("chat_model"),
@@ -56,18 +52,13 @@ pub async fn set_ai_settings(app: tauri::AppHandle, settings: AiSettings) -> Res
     sqlx::query(
         "INSERT INTO ai_settings
              (id, stt_provider, stt_api_key, stt_model, stt_base_url,
-              tts_provider, tts_api_key, tts_model, tts_base_url,
               chat_provider, chat_api_key, chat_model, chat_base_url)
-         VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT(id) DO UPDATE SET
              stt_provider  = excluded.stt_provider,
              stt_api_key   = excluded.stt_api_key,
              stt_model     = excluded.stt_model,
              stt_base_url  = excluded.stt_base_url,
-             tts_provider  = excluded.tts_provider,
-             tts_api_key   = excluded.tts_api_key,
-             tts_model     = excluded.tts_model,
-             tts_base_url  = excluded.tts_base_url,
              chat_provider = excluded.chat_provider,
              chat_api_key  = excluded.chat_api_key,
              chat_model    = excluded.chat_model,
@@ -77,10 +68,6 @@ pub async fn set_ai_settings(app: tauri::AppHandle, settings: AiSettings) -> Res
     .bind(settings.stt_api_key)
     .bind(settings.stt_model)
     .bind(settings.stt_base_url)
-    .bind(settings.tts_provider)
-    .bind(settings.tts_api_key)
-    .bind(settings.tts_model)
-    .bind(settings.tts_base_url)
     .bind(settings.chat_provider)
     .bind(settings.chat_api_key)
     .bind(settings.chat_model)

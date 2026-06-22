@@ -26,6 +26,11 @@ pub fn run() {
             commands::storage::set_storage_dir,
             commands::mail::get_mail_settings,
             commands::mail::set_mail_settings,
+            commands::meetings::list_meetings,
+            commands::meetings::get_meeting,
+            commands::meetings::create_meeting,
+            commands::meetings::update_meeting,
+            commands::meetings::delete_meeting,
             commands::ai::get_ai_settings,
             commands::ai::set_ai_settings,
             commands::models::list_local_models,
@@ -40,10 +45,13 @@ pub fn run() {
             commands::mic_permission::request_microphone_permission,
             commands::transcription::transcription_models_ready,
             commands::transcription::ensure_transcription_models,
+            commands::transcription::get_transcription_settings,
+            commands::transcription::set_transcription_settings,
             commands::transcription::get_transcript,
             commands::transcription::rename_speaker,
             commands::summary::get_meeting_summary,
             commands::summary::generate_meeting_summary,
+            commands::dashboard::get_dashboard_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

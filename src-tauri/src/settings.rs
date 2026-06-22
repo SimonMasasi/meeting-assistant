@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize};
 /// `settings.key` under which the chosen attachment storage folder is stored.
 pub const STORAGE_DIR_KEY: &str = "storage_dir";
 
+/// `settings.key` for the on-device Whisper model size ("tiny" | "base" | "small").
+pub const TRANSCRIPTION_MODEL_SIZE_KEY: &str = "transcription_model_size";
+/// `settings.key` for the transcription language code (e.g. "en", "es", "fr").
+pub const TRANSCRIPTION_LANGUAGE_KEY: &str = "transcription_language";
+
 /// Outgoing mail (SMTP) configuration. Persisted as the single row in the
 /// `mail_settings` table.
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -24,11 +29,13 @@ pub struct MailSettings {
 }
 
 /// Per-role AI model provider configuration. Each role (speech-to-text,
-/// text-to-speech, chat/LLM) names a `provider`, an `api_key`, a `model` and a
-/// `base_url`. Blank fields are treated as "use the application default" by the
-/// callers that consume these settings.
+/// chat/LLM) names a `provider`, an `api_key`, a `model` and a `base_url`. Blank
+/// fields are treated as "use the application default" by the callers that
+/// consume these settings.
 ///
-/// Persisted as the single row (`id = 1`) of the `ai_settings` table.
+/// Persisted as the single row (`id = 1`) of the `ai_settings` table. The table
+/// still carries legacy `tts_*` columns (kept as harmless `NOT NULL DEFAULT ''`
+/// storage); they are intentionally no longer modelled here.
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AiSettings {
     // Speech-to-text (transcription)
@@ -36,12 +43,6 @@ pub struct AiSettings {
     pub stt_api_key: String,
     pub stt_model: String,
     pub stt_base_url: String,
-
-    // Text-to-speech
-    pub tts_provider: String,
-    pub tts_api_key: String,
-    pub tts_model: String,
-    pub tts_base_url: String,
 
     // Chat / summarization (LLM)
     pub chat_provider: String,

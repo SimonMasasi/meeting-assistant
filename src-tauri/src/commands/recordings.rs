@@ -259,7 +259,7 @@ fn parse_stamp(file_name: &str) -> Option<u64> {
 }
 
 /// Playback length in seconds from a WAV header, or `None` if it can't be read.
-fn wav_duration_secs(path: &str) -> Option<f64> {
+pub(crate) fn wav_duration_secs(path: &str) -> Option<f64> {
     let reader = hound::WavReader::open(path).ok()?;
     let sample_rate = reader.spec().sample_rate;
     if sample_rate == 0 {

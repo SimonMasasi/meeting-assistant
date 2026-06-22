@@ -4,12 +4,12 @@ import {
   FieldType,
 } from "@/interfaces/dynamic-form-interfaces";
 import { FieldSize } from "@/interfaces/shared-interfaces";
-import { MeetingDetail } from "../mock-data";
+import { Meeting } from "@/services/meetings";
 
 interface MeetingFormProps {
   /** Pass an existing meeting to edit it; omit to create a new one. */
-  meeting?: MeetingDetail;
-  onSubmit: (meeting: MeetingDetail) => void;
+  meeting?: Meeting;
+  onSubmit: (meeting: Meeting) => void;
 }
 
 const OBJECTIVE_PLACEHOLDER = "No objective set yet.";
@@ -67,7 +67,7 @@ export function MeetingForm({ meeting, onSubmit }: MeetingFormProps) {
     // `||` (not `??`) so an empty select value falls back to a valid type.
     const source = (data.source ||
       meeting?.source ||
-      "online") as MeetingDetail["source"];
+      "online") as Meeting["source"];
     const title = data.title?.trim();
     const objective = data.objective?.trim();
 
@@ -104,11 +104,7 @@ export function MeetingForm({ meeting, onSubmit }: MeetingFormProps) {
       language: "ENG",
       tags: [],
       objective: objective || OBJECTIVE_PLACEHOLDER,
-      summary: "This meeting hasn't been summarized yet.",
-      keyPoints: [],
-      actionItems: [],
-      transcript: [],
-      attachments: [],
+      createdAt: Math.floor(Date.now() / 1000),
     });
   };
 

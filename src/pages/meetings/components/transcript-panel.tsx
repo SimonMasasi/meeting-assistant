@@ -11,7 +11,7 @@ import {
   segmentToLine,
   TranscriptSegment,
 } from "@/services/transcription";
-import { MeetingDetail } from "../mock-data";
+import { Meeting } from "@/services/meetings";
 
 /** Distinct speaker labels in order of first appearance (drives avatar colors). */
 function labelOrderOf(segments: TranscriptSegment[]): string[] {
@@ -22,7 +22,7 @@ function labelOrderOf(segments: TranscriptSegment[]): string[] {
   return seen;
 }
 
-export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
+export function TranscriptPanel({ meeting }: { meeting: Meeting }) {
   // Real, speaker-labeled lines from the on-device pipeline (persisted + live).
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
 
@@ -113,81 +113,12 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
           : "Enable live transcription while recording to detect speakers."}
       </div>
 
-      {/* Lines: real pipeline output when present, otherwise the seeded sample. */}
+      {/* Lines: real, speaker-labeled pipeline output (persisted + live). */}
       <div className="mt-4 space-y-5 overflow-y-auto pr-1 flex-1">
-        {hasLive
-          ? segments.map((seg) => {
-              const line = segmentToLine(seg, labelOrder);
-              return (
-                <div key={line.id} className="flex gap-3 animate-fade-in-up motion-reduce:animate-none">
-                  <div
-                    className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white ${line.color}`}
-                  >
-                    {line.initials}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      {editingId === seg.id ? (
-                        <span className="inline-flex items-center gap-1">
-                          <input
-                            autoFocus
-                            value={draftName}
-                            onChange={(e) => setDraftName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveEdit(seg);
-                              else if (e.key === "Escape") cancelEdit();
-                            }}
-                            onBlur={() => saveEdit(seg)}
-                            aria-label="Speaker name"
-                            className="w-36 px-2 py-0.5 rounded-md border border-primary-400 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-400/40"
-                          />
-                          <button
-                            // onMouseDown so this fires before the input's onBlur.
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              saveEdit(seg);
-                            }}
-                            title="Save name"
-                            className="p-0.5 rounded text-success-500 hover:bg-slate-100 dark:hover:bg-slate-700"
-                          >
-                            <CheckIcon sx={{ fontSize: 16 }} />
-                          </button>
-                          <button
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              cancelEdit();
-                            }}
-                            title="Cancel"
-                            className="p-0.5 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-                          >
-                            <CloseIcon sx={{ fontSize: 16 }} />
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => startEdit(seg)}
-                          title="Rename speaker"
-                          className="group inline-flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:text-primary-600"
-                        >
-                          {line.speaker}
-                          <EditOutlinedIcon
-                            sx={{ fontSize: 13 }}
-                            className="opacity-0 group-hover:opacity-100 text-slate-400 dark:text-slate-500"
-                          />
-                        </button>
-                      )}
-                      <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                        {line.timestamp}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                      {line.text}
-                    </p>
-                  </div>
-                </div>
-              );
-            })
-          : meeting.transcript.map((line) => (
+        {hasLive ? (
+          segments.map((seg) => {
+            const line = segmentToLine(seg, labelOrder);
+            return (
               <div key={line.id} className="flex gap-3 animate-fade-in-up motion-reduce:animate-none">
                 <div
                   className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white ${line.color}`}
@@ -196,9 +127,55 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                      {line.speaker}
-                    </span>
+                    {editingId === seg.id ? (
+                      <span className="inline-flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveEdit(seg);
+                            else if (e.key === "Escape") cancelEdit();
+                          }}
+                          onBlur={() => saveEdit(seg)}
+                          aria-label="Speaker name"
+                          className="w-36 px-2 py-0.5 rounded-md border border-primary-400 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-400/40"
+                        />
+                        <button
+                          // onMouseDown so this fires before the input's onBlur.
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            saveEdit(seg);
+                          }}
+                          title="Save name"
+                          className="p-0.5 rounded text-success-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        >
+                          <CheckIcon sx={{ fontSize: 16 }} />
+                        </button>
+                        <button
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            cancelEdit();
+                          }}
+                          title="Cancel"
+                          className="p-0.5 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        >
+                          <CloseIcon sx={{ fontSize: 16 }} />
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => startEdit(seg)}
+                        title="Rename speaker"
+                        className="group inline-flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:text-primary-600"
+                      >
+                        {line.speaker}
+                        <EditOutlinedIcon
+                          sx={{ fontSize: 13 }}
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 dark:text-slate-500"
+                        />
+                      </button>
+                    )}
                     <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                       {line.timestamp}
                     </span>
@@ -208,7 +185,16 @@ export function TranscriptPanel({ meeting }: { meeting: MeetingDetail }) {
                   </p>
                 </div>
               </div>
-            ))}
+            );
+          })
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center text-center gap-1 py-10 text-slate-400 dark:text-slate-500">
+            <p className="text-sm font-medium">No transcript yet</p>
+            <p className="text-xs">
+              Start recording with live transcription to capture this meeting.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

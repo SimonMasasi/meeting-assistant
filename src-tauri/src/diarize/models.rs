@@ -19,14 +19,32 @@ const VAD_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
 /// NeMo English speaker-verification embedding model (512-dim).
 const EMBEDDING_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_speakerverification_speakernet.onnx";
-/// Whisper "tiny" ASR, distributed as a tar.bz2 that unpacks to
-/// `sherpa-onnx-whisper-tiny/{tiny-encoder.onnx, tiny-decoder.onnx, tiny-tokens.txt}`.
-const WHISPER_URL: &str =
-    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2";
 
 const VAD_FILE: &str = "silero_vad.onnx";
 const EMBEDDING_FILE: &str = "nemo_en_speakerverification_speakernet.onnx";
-const WHISPER_DIR: &str = "sherpa-onnx-whisper-tiny";
+
+/// Whisper model sizes we offer. These are the *multilingual* sherpa-onnx
+/// bundles (no `.en` suffix) so the chosen transcription language applies. Larger
+/// sizes are more accurate but slower and bigger to download:
+/// tiny ≈ 75 MB, base ≈ 145 MB, small ≈ 460 MB.
+pub const WHISPER_SIZES: [&str; 3] = ["tiny", "base", "small"];
+
+/// Normalize an arbitrary size string to one we support, defaulting to "tiny".
+pub fn normalize_size(size: &str) -> &'static str {
+    let s = size.trim().to_lowercase();
+    WHISPER_SIZES.into_iter().find(|&w| w == s).unwrap_or("tiny")
+}
+
+/// Download URL for a Whisper size's tar.bz2 bundle. It unpacks to
+/// `sherpa-onnx-whisper-{size}/{size}-encoder.onnx, {size}-decoder.onnx, {size}-tokens.txt`.
+fn whisper_url(size: &str) -> String {
+    format!("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-{size}.tar.bz2")
+}
+
+/// The unpacked directory name for a Whisper size.
+fn whisper_dir_name(size: &str) -> String {
+    format!("sherpa-onnx-whisper-{size}")
+}
 
 /// Resolved on-disk paths for every model the pipeline loads.
 #[derive(Clone)]
@@ -72,23 +90,27 @@ pub fn models_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// Compute the expected model paths without downloading anything.
-pub fn resolve(app: &tauri::AppHandle) -> Result<ModelPaths> {
+/// Compute the expected model paths for a given Whisper size without downloading
+/// anything. The VAD and speaker-embedding models are size-independent and shared;
+/// only the Whisper subdirectory varies, so multiple sizes can coexist on disk.
+pub fn resolve(app: &tauri::AppHandle, size: &str) -> Result<ModelPaths> {
+    let size = normalize_size(size);
     let dir = models_dir(app)?;
-    let whisper = dir.join(WHISPER_DIR);
+    let whisper = dir.join(whisper_dir_name(size));
     Ok(ModelPaths {
         vad: dir.join(VAD_FILE),
         embedding: dir.join(EMBEDDING_FILE),
-        whisper_encoder: whisper.join("tiny-encoder.onnx"),
-        whisper_decoder: whisper.join("tiny-decoder.onnx"),
-        whisper_tokens: whisper.join("tiny-tokens.txt"),
+        whisper_encoder: whisper.join(format!("{size}-encoder.onnx")),
+        whisper_decoder: whisper.join(format!("{size}-decoder.onnx")),
+        whisper_tokens: whisper.join(format!("{size}-tokens.txt")),
     })
 }
 
-/// Ensure all models are present, downloading any that are missing. Idempotent:
-/// returns immediately once everything is in place.
-pub fn ensure(app: &tauri::AppHandle) -> Result<ModelPaths> {
-    let paths = resolve(app)?;
+/// Ensure all models for a given Whisper size are present, downloading any that
+/// are missing. Idempotent: returns immediately once everything is in place.
+pub fn ensure(app: &tauri::AppHandle, size: &str) -> Result<ModelPaths> {
+    let size = normalize_size(size);
+    let paths = resolve(app, size)?;
     if paths.all_present() {
         return Ok(paths);
     }
@@ -106,9 +128,10 @@ pub fn ensure(app: &tauri::AppHandle) -> Result<ModelPaths> {
         || !paths.whisper_decoder.exists()
         || !paths.whisper_tokens.exists()
     {
-        let tarball = dir.join("whisper-tiny.tar.bz2");
-        download_to(app, WHISPER_URL, &tarball, "whisper-tiny")?;
-        emit(app, "extracting", "whisper-tiny", 100);
+        let label = format!("whisper-{size}");
+        let tarball = dir.join(format!("{label}.tar.bz2"));
+        download_to(app, &whisper_url(size), &tarball, &label)?;
+        emit(app, "extracting", &label, 100);
         extract_tar_bz2(&tarball, &dir)?;
         let _ = std::fs::remove_file(&tarball);
     }

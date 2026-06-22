@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -7,7 +7,7 @@ import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { meetingsAtom } from "@/atoms/meetings-atoms";
-import { getMeetingById } from "./mock-data";
+import { Meeting, getMeeting } from "@/services/meetings";
 import { NotesKeyPoints } from "./components/notes-key-points";
 import { MeetingObjective } from "./components/meeting-objective";
 import { TranscriptPanel } from "./components/transcript-panel";
@@ -17,12 +17,49 @@ import { RecordingsList } from "./components/recordings-list";
 export function MeetingDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const meetings = useAtomValue(meetingsAtom);
-  const meeting = getMeetingById(meetings, id);
+  const cached = useAtomValue(meetingsAtom);
+
+  // Prefer the in-session cache (instant), but fetch on a cache miss so deep
+  // links and fresh loads still resolve. `loading` avoids flashing "not found".
+  const [meeting, setMeeting] = useState<Meeting | null>(
+    () => cached.find((m) => m.id === id) ?? null,
+  );
+  const [loading, setLoading] = useState(!meeting);
+
+  useEffect(() => {
+    const hit = cached.find((m) => m.id === id);
+    if (hit) {
+      setMeeting(hit);
+      setLoading(false);
+      return;
+    }
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    getMeeting(id)
+      .then((m) => setMeeting(m))
+      .catch((err) => {
+        console.error("Failed to load meeting", err);
+        setMeeting(null);
+      })
+      .finally(() => setLoading(false));
+  }, [id, cached]);
 
   // Bumped whenever the recorder starts/stops so the saved-recordings list
   // (a sibling of the recorder) re-fetches and shows the new file right away.
   const [recordingsVersion, setRecordingsVersion] = useState(0);
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-10 flex flex-col items-center text-center gap-3">
+          <p className="text-sm text-slate-400 dark:text-slate-500">Loading meeting…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!meeting) {
     return (

@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { DataTableColumns } from "@/interfaces/shared-interfaces";
 import DataTableMain from "@/components/shared/tables/data-table-main";
+import { listMeetings } from "@/services/meetings";
 
 interface RecentMeeting {
-  id: number;
+  id: string;
   title: string;
   host: string;
   date: string;
@@ -40,25 +42,27 @@ const columns: DataTableColumns[] = [
   },
 ];
 
-const mockMeetings: RecentMeeting[] = [
-  { id: 1, title: "Q2 Product Review", host: "Alice Johnson", date: "2026-06-04 09:00", duration: "1h 30m", attendees: 12, status: "Completed" },
-  { id: 2, title: "Engineering Standup", host: "Bob Smith", date: "2026-06-04 10:00", duration: "30m", attendees: 8, status: "Completed" },
-  { id: 3, title: "Client Demo — Acme Corp", host: "Carol White", date: "2026-06-04 13:00", duration: "1h", attendees: 5, status: "Ongoing" },
-  { id: 4, title: "Design Sync", host: "David Lee", date: "2026-06-04 14:30", duration: "45m", attendees: 4, status: "Upcoming" },
-  { id: 5, title: "Marketing Strategy", host: "Eva Brown", date: "2026-06-03 11:00", duration: "2h", attendees: 9, status: "Completed" },
-  { id: 6, title: "HR Town Hall", host: "Frank Greer", date: "2026-06-03 15:00", duration: "1h 15m", attendees: 35, status: "Completed" },
-  { id: 7, title: "Sprint Planning", host: "Grace Kim", date: "2026-06-02 09:30", duration: "2h", attendees: 7, status: "Completed" },
-  { id: 8, title: "Investor Update", host: "Henry Park", date: "2026-06-02 16:00", duration: "1h", attendees: 6, status: "Cancelled" },
-  { id: 9, title: "Sales Pipeline Review", host: "Isla Turner", date: "2026-06-01 10:00", duration: "1h", attendees: 10, status: "Completed" },
-  { id: 10, title: "Roadmap Planning", host: "Jake Morris", date: "2026-06-05 09:00", duration: "3h", attendees: 15, status: "Upcoming" },
-];
-
 export function RecentMeetingsTable() {
-  return (
-    <DataTableMain
-      title="Recent Meetings"
-      columns={columns}
-      rows={mockMeetings}
-    />
-  );
+  const [rows, setRows] = useState<RecentMeeting[]>([]);
+
+  useEffect(() => {
+    listMeetings()
+      .then((meetings) =>
+        setRows(
+          // Backend returns newest-first; show the ten most recent.
+          meetings.slice(0, 10).map((m) => ({
+            id: m.id,
+            title: m.title,
+            host: m.host,
+            date: `${m.date}, ${m.time}`,
+            duration: m.durationLabel,
+            attendees: m.attendees,
+            status: m.status,
+          })),
+        ),
+      )
+      .catch((err) => console.error("Failed to load recent meetings", err));
+  }, []);
+
+  return <DataTableMain title="Recent Meetings" columns={columns} rows={rows} />;
 }

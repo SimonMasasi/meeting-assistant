@@ -33,16 +33,15 @@ const OPENAI: ProviderOption = { key: "openai", label: "OpenAI" };
 const ANTHROPIC: ProviderOption = { key: "anthropic", label: "Anthropic" };
 const LOCAL: ProviderOption = { key: "local", label: "Local / self-hosted" };
 
-/** Which providers are valid per role. Anthropic offers no STT/TTS, so it only
+/** Which providers are valid per role. Anthropic offers no STT, so it only
  *  appears for chat. */
 const STT_PROVIDERS = [OPENAI, LOCAL];
-const TTS_PROVIDERS = [OPENAI, LOCAL];
 const CHAT_PROVIDERS = [OPENAI, ANTHROPIC, LOCAL];
 
-/** The three roles, each mapped to its column prefix in `AiSettings` and the
- *  default values used to backfill blank fields / prefill on provider switch. */
+/** The roles, each mapped to its column prefix in `AiSettings` and the default
+ *  values used to backfill blank fields / prefill on provider switch. */
 type Role = {
-  prefix: "stt" | "tts" | "chat";
+  prefix: "stt" | "chat";
   title: string;
   description: string;
   providers: ProviderOption[];
@@ -56,13 +55,6 @@ const ROLES: Role[] = [
     description: "Transcribes meeting recordings into text.",
     providers: STT_PROVIDERS,
     defaults: { model: AI_DEFAULTS.stt_model, base_url: AI_DEFAULTS.stt_base_url },
-  },
-  {
-    prefix: "tts",
-    title: "Text-to-Speech",
-    description: "Generates spoken audio from text.",
-    providers: TTS_PROVIDERS,
-    defaults: { model: AI_DEFAULTS.tts_model, base_url: AI_DEFAULTS.tts_base_url },
   },
   {
     prefix: "chat",
@@ -83,7 +75,6 @@ const MODEL_OPTIONS: Record<
 > = {
   openai: {
     stt: ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"],
-    tts: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"],
     chat: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o3", "o4-mini"],
   },
   anthropic: {
@@ -299,8 +290,7 @@ export function AiSettings() {
           </p>
           {settings ? (
             <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-              STT: {settings.stt_provider} · TTS: {settings.tts_provider} · Chat:{" "}
-              {settings.chat_provider}
+              STT: {settings.stt_provider} · Chat: {settings.chat_provider}
             </p>
           ) : (
             <p className="text-sm font-medium text-slate-400 dark:text-slate-500">Loading…</p>

@@ -1,9 +1,9 @@
 import IosShareIcon from "@mui/icons-material/IosShare";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import { MeetingDetail } from "../mock-data";
+import { Meeting } from "@/services/meetings";
 
-export function MeetingHeader({ meeting }: { meeting: MeetingDetail }) {
+export function MeetingHeader({ meeting }: { meeting: Meeting }) {
 
   return (
     <div className="relative overflow-hidden rounded-2xl shadow-lg bg-slate-900 aspect-[16/9]">

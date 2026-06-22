@@ -26,7 +26,18 @@ import {
   TranscriptionStatus,
   transcriptionModelsReady,
 } from "@/services/transcription";
-import { MeetingDetail } from "../mock-data";
+import { Meeting } from "@/services/meetings";
+import {
+  getTranscriptionSettings,
+  MODEL_SIZE_OPTIONS,
+} from "@/services/transcription-settings";
+
+/** Short "~N MB" hint for a model size, from the shared options list. */
+function modelSizeMb(size: string): string {
+  const opt = MODEL_SIZE_OPTIONS.find((o) => o.key === size);
+  const match = opt?.hint.match(/~\d+\s*MB/);
+  return match ? match[0] : "~75 MB";
+}
 
 /** mm:ss for the live timer. */
 function formatElapsed(totalSeconds: number): string {
@@ -67,7 +78,7 @@ export function RecordingPanel({
   meeting,
   onRecordingsChanged,
 }: {
-  meeting: MeetingDetail;
+  meeting: Meeting;
   onRecordingsChanged?: () => void;
 }) {
   const [recording, setRecording] = useState(false);
@@ -78,11 +89,15 @@ export function RecordingPanel({
   const [permission, setPermission] = useState<MicPermission | null>(null);
   const [devices, setDevices] = useState<MicrophoneDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  // Optional system/loopback capture (remote participants), off by default.
+  const [captureSystem, setCaptureSystem] = useState(false);
+  const [systemDevice, setSystemDevice] = useState<string | null>(null);
   // Live mic amplitude (0..1) from the backend, driving the waveform bars.
   const [level, setLevel] = useState(0);
   // Live transcription + speaker detection: user opt-in, plus model-download state.
   const [transcribe, setTranscribe] = useState(false);
   const [modelsReady, setModelsReady] = useState<boolean | null>(null);
+  const [modelSize, setModelSize] = useState("tiny");
   const [download, setDownload] = useState<TranscriptionProgress | null>(null);
   const [status, setStatus] = useState<TranscriptionStatus | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -111,6 +126,10 @@ export function RecordingPanel({
     transcriptionModelsReady()
       .then(setModelsReady)
       .catch(() => setModelsReady(false));
+    // Know the chosen model size so the download hint shows the right size.
+    getTranscriptionSettings()
+      .then((s) => setModelSize(s.modelSize))
+      .catch(() => {});
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -215,12 +234,18 @@ export function RecordingPanel({
         setBusy(false);
         return;
       }
+      if (captureSystem && !systemDevice) {
+        setError("Select a system audio device, or turn off system capture.");
+        setBusy(false);
+        return;
+      }
       // Only request live transcription if the models are actually present;
       // otherwise the backend would just record without it.
       await startRecording(
         meeting.id,
         selectedDevice ?? undefined,
         transcribe && modelsReady === true,
+        captureSystem ? systemDevice ?? undefined : undefined,
       );
       setElapsed(0);
       setRecording(true);
@@ -341,6 +366,63 @@ export function RecordingPanel({
         </div>
       )}
 
+      {/* System / loopback audio — capture remote participants on calls. */}
+      {!blocked && devices.length > 0 && (
+        <div className="mt-4">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={captureSystem}
+              disabled={recording || busy}
+              onChange={(e) => setCaptureSystem(e.target.checked)}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Capture system audio (remote participants)
+              </span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
+                For online calls, also record the audio coming from your speakers.
+                Requires a loopback input device (e.g. install BlackHole on macOS
+                and route output through a Multi-Output Device).
+              </span>
+            </span>
+          </label>
+
+          {captureSystem && (
+            <div className="mt-2">
+              <Select
+                value={systemDevice ?? ""}
+                onChange={(e) => setSystemDevice(e.target.value || null)}
+                disabled={recording || busy}
+                fullWidth
+                size="small"
+                displayEmpty
+                renderValue={(v) =>
+                  (v as string) || "Select system audio device…"
+                }
+                sx={(theme) => ({
+                  borderRadius: "12px",
+                  fontSize: "0.875rem",
+                  backgroundColor:
+                    theme.palette.mode === "dark" ? "#0f172a" : "#f8fafc",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor:
+                      theme.palette.mode === "dark" ? "#334155" : "#e2e8f0",
+                  },
+                })}
+              >
+                {devices.map((d) => (
+                  <MenuItem key={d.name} value={d.name} sx={{ fontSize: "0.875rem" }}>
+                    {d.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Live transcription + speaker detection — runs fully on-device. */}
       {!blocked && (
         <div className="mt-4">
@@ -369,7 +451,9 @@ export function RecordingPanel({
                 Transcribe and label who's speaking, in real time and fully
                 on-device.
                 {modelsReady === false && !transcribe
-                  ? " First use downloads ~250 MB of models."
+                  ? ` First use downloads the ${modelSize} model (${modelSizeMb(
+                      modelSize,
+                    )}) plus shared speech models.`
                   : ""}
               </span>
             </span>

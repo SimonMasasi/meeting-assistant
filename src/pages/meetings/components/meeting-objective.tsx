@@ -1,4 +1,4 @@
-import { MeetingDetail } from "../mock-data";
+import { Meeting } from "@/services/meetings";
 
 const tagStyles = [
   "bg-accent-100 text-accent-700",
@@ -7,7 +7,7 @@ const tagStyles = [
   "bg-warning-100 text-warning-700",
 ];
 
-export function MeetingObjective({ meeting }: { meeting: MeetingDetail }) {
+export function MeetingObjective({ meeting }: { meeting: Meeting }) {
   return (
     <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 flex flex-col max-h-[60vh] transition-shadow duration-300 hover:shadow-xl">
       <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Notes</h2>

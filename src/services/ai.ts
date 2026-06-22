@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** Configuration for a single AI role (STT, TTS or chat). */
+/** Configuration for a single AI role (STT or chat). */
 export interface AiProviderConfig {
   provider: string;
   api_key: string;
@@ -15,12 +15,6 @@ export interface AiSettings {
   stt_api_key: string;
   stt_model: string;
   stt_base_url: string;
-
-  // Text-to-speech
-  tts_provider: string;
-  tts_api_key: string;
-  tts_model: string;
-  tts_base_url: string;
 
   // Chat / summarization (LLM)
   chat_provider: string;
@@ -39,11 +33,6 @@ export const AI_DEFAULTS: AiSettings = {
   stt_api_key: "",
   stt_model: "whisper-1",
   stt_base_url: "https://api.openai.com/v1",
-
-  tts_provider: "openai",
-  tts_api_key: "",
-  tts_model: "tts-1",
-  tts_base_url: "https://api.openai.com/v1",
 
   chat_provider: "openai",
   chat_api_key: "",

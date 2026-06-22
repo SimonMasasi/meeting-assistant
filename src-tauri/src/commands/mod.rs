@@ -3,8 +3,10 @@
 
 pub mod ai;
 pub mod attachments;
+pub mod dashboard;
 pub mod greet;
 pub mod mail;
+pub mod meetings;
 pub mod mic_permission;
 pub mod microphone;
 pub mod models;

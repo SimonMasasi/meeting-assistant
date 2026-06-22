@@ -20,16 +20,27 @@ use tauri::{Emitter, State};
 
 use crate::commands::storage::resolve_storage_dir;
 use crate::db::pool;
+use crate::diarize::audio::{downmix, Resampler16k, TARGET_RATE};
 use crate::error::{Error, Result};
 
 /// The WAV writer shared between the recorder thread and cpal's audio callback.
 type SharedWriter = Arc<Mutex<Option<hound::WavWriter<std::io::BufWriter<std::fs::File>>>>>;
+
+/// A buffer of normalized (`-1.0..1.0`) interleaved samples teed from one capture
+/// source to the transcription mixer. `source` indexes the mixer's source list
+/// (0 = microphone, 1 = system audio).
+struct SourceChunk {
+    source: usize,
+    interleaved: Vec<f32>,
+}
 
 /// An in-progress recording, held in managed state from `start_recording` until
 /// `stop_recording` flips the stop flag and joins the capture thread.
 struct ActiveRecording {
     meeting_id: String,
     path: PathBuf,
+    /// Second WAV for captured system/loopback audio, when that source is on.
+    system_path: Option<PathBuf>,
     stop: Arc<AtomicBool>,
     thread: JoinHandle<Result<()>>,
 }
@@ -104,6 +115,7 @@ pub async fn start_recording(
     state: State<'_, RecordingState>,
     meeting_id: String,
     device_name: Option<String>,
+    system_device_name: Option<String>,
     transcribe: bool,
 ) -> Result<()> {
     if state.0.lock().unwrap().is_some() {
@@ -129,12 +141,25 @@ pub async fn start_recording(
         .join(&meeting_id);
     std::fs::create_dir_all(&dir)?;
 
+    // The chosen Whisper size + language drive which models the pipeline loads
+    // and the recognizer's language. Read here (async) so the capture thread
+    // doesn't need DB access.
+    let transcription = {
+        let pool = pool(&app).await?;
+        crate::commands::transcription::fetch_transcription_settings(&pool).await?
+    };
+
     // Seconds-since-epoch keeps successive recordings for a meeting distinct.
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let path = dir.join(format!("recording-{stamp}.wav"));
+    // System/loopback audio (e.g. remote call participants) is captured to its own
+    // WAV alongside the mic and mixed into the transcription pipeline.
+    let system_path = system_device_name
+        .as_ref()
+        .map(|_| dir.join(format!("recording-{stamp}-system.wav")));
 
     let stop = Arc::new(AtomicBool::new(false));
 
@@ -144,11 +169,26 @@ pub async fn start_recording(
     let (ready_tx, ready_rx) = mpsc::channel::<std::result::Result<(), String>>();
     let thread = {
         let path = path.clone();
+        let system_path = system_path.clone();
         let stop = stop.clone();
         let app = app.clone();
         let meeting_id = meeting_id.clone();
+        let model_size = transcription.model_size.clone();
+        let language = transcription.language.clone();
         std::thread::spawn(move || {
-            capture(app, path, device_name, meeting_id, transcribe, stop, ready_tx)
+            capture(
+                app,
+                path,
+                device_name,
+                system_device_name,
+                system_path,
+                meeting_id,
+                transcribe,
+                model_size,
+                language,
+                stop,
+                ready_tx,
+            )
         })
     };
 
@@ -169,6 +209,7 @@ pub async fn start_recording(
     *state.0.lock().unwrap() = Some(ActiveRecording {
         meeting_id,
         path,
+        system_path,
         stop,
         thread,
     });
@@ -195,22 +236,42 @@ pub async fn stop_recording(
         .join()
         .map_err(|_| Error::Message("Recorder thread panicked".to_string()))??;
 
-    let size = std::fs::metadata(&active.path)?.len();
-    let file_name = active
-        .path
+    let pool = pool(&app).await?;
+    let saved = register_recording(&pool, &active.meeting_id, &active.path).await?;
+    // Register the system-audio file too, when one was captured, so it shows in
+    // the recordings list (it appears on the next refresh). Don't fail the whole
+    // stop if only the optional system file can't be registered.
+    if let Some(sp) = &active.system_path {
+        if sp.exists() {
+            if let Err(e) = register_recording(&pool, &active.meeting_id, sp).await {
+                eprintln!("failed to register system recording: {e}");
+            }
+        }
+    }
+
+    Ok(saved)
+}
+
+/// Insert (or refresh) a `recordings` row for a finished WAV and return its
+/// reference. The id is `"{meeting_id}-{file_name}"`, matching the live tee.
+async fn register_recording(
+    pool: &sqlx::Pool<sqlx::Sqlite>,
+    meeting_id: &str,
+    path: &std::path::Path,
+) -> Result<SavedRecording> {
+    let size = std::fs::metadata(path)?.len();
+    let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("recording.wav")
         .to_string();
     let saved = SavedRecording {
-        id: format!("{}-{}", active.meeting_id, file_name),
+        id: format!("{meeting_id}-{file_name}"),
         file_name,
-        path: active.path.to_string_lossy().to_string(),
+        path: path.to_string_lossy().to_string(),
         size,
         duration_secs: None,
     };
-
-    let pool = pool(&app).await?;
     sqlx::query(
         "INSERT INTO recordings (id, meeting_id, file_name, path, size)
          VALUES ($1, $2, $3, $4, $5)
@@ -220,13 +281,12 @@ pub async fn stop_recording(
              size      = excluded.size",
     )
     .bind(&saved.id)
-    .bind(&active.meeting_id)
+    .bind(meeting_id)
     .bind(&saved.file_name)
     .bind(&saved.path)
     .bind(saved.size as i64)
-    .execute(&pool)
+    .execute(pool)
     .await?;
-
     Ok(saved)
 }
 
@@ -237,15 +297,80 @@ pub fn is_recording(state: State<'_, RecordingState>) -> bool {
     state.0.lock().unwrap().is_some()
 }
 
-/// Runs on the dedicated capture thread: open the chosen (or default) input
-/// device, stream samples into the WAV writer until `stop` is set, then finalize
-/// the file.
+/// Resolve a named input device, falling back to the OS default when the name is
+/// `None` or no longer matches a present device.
+fn resolve_input_device(host: &cpal::Host, name: Option<&str>) -> Option<cpal::Device> {
+    let selected = name.and_then(|wanted| {
+        host.input_devices()
+            .ok()?
+            .find(|d| d.name().map(|n| n == wanted).unwrap_or(false))
+    });
+    selected.or_else(|| host.default_input_device())
+}
+
+/// Build and start an input stream for one source, writing 16-bit PCM to `writer`,
+/// tracking peak amplitude into `peak`, and (when `tee` is set) forwarding a
+/// normalized `f32` copy tagged with `source` to the transcription mixer.
+fn open_input_stream(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    sample_format: cpal::SampleFormat,
+    writer: SharedWriter,
+    peak: Arc<AtomicU32>,
+    tee: Option<mpsc::Sender<SourceChunk>>,
+    source: usize,
+) -> std::result::Result<cpal::Stream, String> {
+    let err_fn = |err| eprintln!("audio stream error: {err}");
+    let w = writer;
+    let p = peak;
+    let t = tee;
+    let built = match sample_format {
+        cpal::SampleFormat::F32 => device.build_input_stream(
+            config,
+            move |data: &[f32], _: &_| {
+                write_samples(data, &w, &p, t.as_ref(), source, |s| {
+                    (s.clamp(-1.0, 1.0) * 32767.0) as i16
+                })
+            },
+            err_fn,
+            None,
+        ),
+        cpal::SampleFormat::I16 => device.build_input_stream(
+            config,
+            move |data: &[i16], _: &_| write_samples(data, &w, &p, t.as_ref(), source, |s| s),
+            err_fn,
+            None,
+        ),
+        cpal::SampleFormat::U16 => device.build_input_stream(
+            config,
+            move |data: &[u16], _: &_| {
+                write_samples(data, &w, &p, t.as_ref(), source, |s| (s as i32 - 32768) as i16)
+            },
+            err_fn,
+            None,
+        ),
+        other => return Err(format!("Unsupported sample format: {other:?}")),
+    };
+    let stream = built.map_err(|e| e.to_string())?;
+    stream.play().map_err(|e| e.to_string())?;
+    Ok(stream)
+}
+
+/// Runs on the dedicated capture thread: open the chosen (or default) microphone
+/// and, optionally, a system-audio device; stream both into their WAV files until
+/// `stop` is set; and, when transcription is on, mix them to 16 kHz mono and feed
+/// the live pipeline. Finalizes the file(s) on stop.
+#[allow(clippy::too_many_arguments)]
 fn capture(
     app: tauri::AppHandle,
     path: PathBuf,
     device_name: Option<String>,
+    system_device_name: Option<String>,
+    system_path: Option<PathBuf>,
     meeting_id: String,
     transcribe: bool,
+    model_size: String,
+    language: String,
     stop: Arc<AtomicBool>,
     ready: mpsc::Sender<std::result::Result<(), String>>,
 ) -> Result<()> {
@@ -264,14 +389,8 @@ fn capture(
 
     let host = cpal::default_host();
 
-    // Prefer the named device when it's still present; otherwise fall back to the
-    // OS default so a stale/removed selection doesn't break recording.
-    let selected = device_name.as_deref().and_then(|wanted| {
-        host.input_devices()
-            .ok()?
-            .find(|d| d.name().map(|n| n == wanted).unwrap_or(false))
-    });
-    let device = match selected.or_else(|| host.default_input_device()) {
+    // --- Microphone (always present) ---
+    let mic_device = match resolve_input_device(&host, device_name.as_deref()) {
         Some(d) => d,
         None => {
             let msg = "No microphone (input device) was found".to_string();
@@ -279,112 +398,156 @@ fn capture(
             return Err(Error::Message(msg));
         }
     };
-    let supported = try_ready!(device.default_input_config());
+    let mic_cfg = try_ready!(mic_device.default_input_config());
+    let mic_channels = mic_cfg.channels();
+    let mic_rate = mic_cfg.sample_rate().0;
+    let mic_format = mic_cfg.sample_format();
+    let mic_writer: SharedWriter =
+        Arc::new(Mutex::new(Some(try_ready!(hound::WavWriter::create(
+            &path,
+            wav_spec(mic_channels, mic_rate)
+        )))));
+    let mic_config: cpal::StreamConfig = mic_cfg.config();
 
-    let channels = supported.channels();
-    let sample_rate = supported.sample_rate().0;
-    let sample_format = supported.sample_format();
-    let spec = hound::WavSpec {
-        channels,
-        sample_rate,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
+    // --- System audio (optional) ---
+    // The user explicitly opted in, so a failure to open it is surfaced rather
+    // than silently downgraded to mic-only.
+    struct SystemSetup {
+        device: cpal::Device,
+        config: cpal::StreamConfig,
+        format: cpal::SampleFormat,
+        channels: u16,
+        rate: u32,
+        writer: SharedWriter,
+    }
+    let system = if let Some(name) = system_device_name.as_deref() {
+        let device = match resolve_input_device(&host, Some(name)) {
+            Some(d) => d,
+            None => {
+                let msg = format!(
+                    "Could not find the system-audio device '{name}'. Check it's connected (e.g. BlackHole)."
+                );
+                let _ = ready.send(Err(msg.clone()));
+                return Err(Error::Message(msg));
+            }
+        };
+        let cfg = try_ready!(device.default_input_config());
+        let channels = cfg.channels();
+        let rate = cfg.sample_rate().0;
+        let format = cfg.sample_format();
+        let writer: SharedWriter = match &system_path {
+            Some(p) => Arc::new(Mutex::new(Some(try_ready!(hound::WavWriter::create(
+                p,
+                wav_spec(channels, rate)
+            ))))),
+            None => Arc::new(Mutex::new(None)),
+        };
+        Some(SystemSetup {
+            device,
+            config: cfg.config(),
+            format,
+            channels,
+            rate,
+            writer,
+        })
+    } else {
+        None
     };
-    let writer: SharedWriter = Arc::new(Mutex::new(Some(try_ready!(hound::WavWriter::create(
-        &path, spec
-    )))));
-    let config: cpal::StreamConfig = supported.config();
 
-    // Total mono frames captured so far, bumped by the audio callback as audio is
-    // recorded. The transcription worker reads this to measure how much audio is
-    // still queued ahead of it (its real backlog), so the "Finishing transcription…"
-    // countdown reflects the channel queue rather than just the current chunk.
-    let captured = Arc::new(AtomicU64::new(0));
+    // Peak amplitude (0.0..1.0) for the UI meter, written by the audio callbacks
+    // and read+reset by the level loop below. Both sources share it so the meter
+    // reflects combined loudness; emitting events from the audio thread is avoided.
+    let peak = Arc::new(AtomicU32::new(0));
 
-    // Live transcription tee: when enabled and the models are already present,
-    // hand each callback's samples to a worker thread that resamples, diarizes,
-    // and transcribes in real time. The WAV path below is untouched — this only
-    // copies samples. Missing models degrade gracefully to plain recording.
-    let (tee, pipeline): (Option<mpsc::Sender<Vec<f32>>>, Option<JoinHandle<()>>) = if transcribe {
-        match crate::diarize::models::resolve(&app)
+    // Live transcription: when enabled and the models for the chosen size are
+    // present, both sources tee into a mixer thread that resamples each to 16 kHz
+    // mono and sums them, feeding the pipeline a single stream. The WAV writers
+    // are untouched by this — it only copies samples.
+    let (mut mic_tee, mut sys_tee): (
+        Option<mpsc::Sender<SourceChunk>>,
+        Option<mpsc::Sender<SourceChunk>>,
+    ) = (None, None);
+    let mut mixer: Option<JoinHandle<()>> = None;
+    let mut pipeline: Option<JoinHandle<()>> = None;
+    if transcribe {
+        match crate::diarize::models::resolve(&app, &model_size)
             .ok()
             .filter(|m| m.all_present())
         {
             Some(models) => {
-                let (tx, rx) = mpsc::channel::<Vec<f32>>();
+                let (chunk_tx, chunk_rx) = mpsc::channel::<SourceChunk>();
+                let (mixed_tx, mixed_rx) = mpsc::channel::<Vec<f32>>();
+                // 16 kHz mono frames forwarded to the pipeline, for its backlog clock.
+                let captured = Arc::new(AtomicU64::new(0));
+
+                // Source list: index 0 = mic, index 1 = system (when present).
+                let mut sources = vec![(mic_rate, mic_channels)];
+                if let Some(s) = &system {
+                    sources.push((s.rate, s.channels));
+                }
+
+                let mixer_captured = captured.clone();
+                mixer = Some(std::thread::spawn(move || {
+                    run_mixer(chunk_rx, sources, mixed_tx, mixer_captured);
+                }));
+
                 let file_name = path
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("recording.wav")
                     .to_string();
                 let recording_id = format!("{meeting_id}-{file_name}");
-                let app = app.clone();
-                let worker_captured = captured.clone();
-                let handle = std::thread::spawn(move || {
+                let app_pipe = app.clone();
+                pipeline = Some(std::thread::spawn(move || {
                     crate::diarize::pipeline::run(
-                        app,
+                        app_pipe,
                         meeting_id,
                         Some(recording_id),
-                        sample_rate,
-                        channels,
+                        TARGET_RATE,
+                        1,
                         models,
-                        rx,
-                        worker_captured,
+                        language,
+                        mixed_rx,
+                        captured,
                     );
-                });
-                (Some(tx), Some(handle))
+                }));
+
+                sys_tee = system.as_ref().map(|_| chunk_tx.clone());
+                mic_tee = Some(chunk_tx);
             }
             None => {
                 let _ = app.emit(
                     "transcription-error",
                     "Speech models are not downloaded yet".to_string(),
                 );
-                (None, None)
             }
         }
+    }
+
+    // Open the streams. The callbacks own clones of the tee senders; the originals
+    // stay here so the mixer channel only closes once recording fully stops.
+    let mic_stream = try_ready!(open_input_stream(
+        &mic_device,
+        &mic_config,
+        mic_format,
+        mic_writer.clone(),
+        peak.clone(),
+        mic_tee.clone(),
+        0,
+    ));
+    let sys_stream: Option<cpal::Stream> = if let Some(s) = &system {
+        Some(try_ready!(open_input_stream(
+            &s.device,
+            &s.config,
+            s.format,
+            s.writer.clone(),
+            peak.clone(),
+            sys_tee.clone(),
+            1,
+        )))
     } else {
-        (None, None)
+        None
     };
-
-    // Latest peak amplitude (0.0..1.0) seen by the audio callback since the loop
-    // below last read it, stored as `f32` bits. The callback only writes here —
-    // emitting Tauri events from a real-time audio thread could block it.
-    let peak = Arc::new(AtomicU32::new(0));
-
-    let err_fn = |err| eprintln!("microphone stream error: {err}");
-    let w = writer.clone();
-    let p = peak.clone();
-    // A clone of the tee sender owned by the audio callback; the original stays
-    // in this function so the channel only closes once recording fully stops.
-    let t = tee.clone();
-    let c = captured.clone();
-    let stream = match sample_format {
-        cpal::SampleFormat::F32 => device.build_input_stream(
-            &config,
-            move |data: &[f32], _: &_| write_samples(data, &w, &p, t.as_ref(), &c, channels, |s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
-            err_fn,
-            None,
-        ),
-        cpal::SampleFormat::I16 => device.build_input_stream(
-            &config,
-            move |data: &[i16], _: &_| write_samples(data, &w, &p, t.as_ref(), &c, channels, |s| s),
-            err_fn,
-            None,
-        ),
-        cpal::SampleFormat::U16 => device.build_input_stream(
-            &config,
-            move |data: &[u16], _: &_| write_samples(data, &w, &p, t.as_ref(), &c, channels, |s| (s as i32 - 32768) as i16),
-            err_fn,
-            None,
-        ),
-        other => {
-            let msg = format!("Unsupported microphone sample format: {other:?}");
-            let _ = ready.send(Err(msg.clone()));
-            return Err(Error::Message(msg));
-        }
-    };
-    let stream = try_ready!(stream);
-    try_ready!(stream.play());
 
     // Setup succeeded; capture is live.
     let _ = ready.send(Ok(()));
@@ -396,7 +559,6 @@ fn capture(
     while !stop.load(Ordering::Relaxed) {
         std::thread::sleep(std::time::Duration::from_millis(50));
         let raw = f32::from_bits(peak.swap(0, Ordering::Relaxed));
-        // Snap up to a louder peak immediately; ease back down on quiet.
         smoothed = if raw > smoothed {
             raw
         } else {
@@ -405,65 +567,173 @@ fn capture(
         let _ = app.emit("recording-level", smoothed);
     }
 
-    // Dropping the stream halts the callback (and drops its tee clone) before we
-    // finalize the header.
-    drop(stream);
-    if let Some(w) = writer.lock().unwrap().take() {
+    // Dropping the streams halts the callbacks (and their tee clones) before we
+    // finalize the headers.
+    drop(mic_stream);
+    drop(sys_stream);
+    if let Some(w) = mic_writer.lock().unwrap().take() {
         w.finalize()?;
     }
+    if let Some(s) = &system {
+        if let Some(w) = s.writer.lock().unwrap().take() {
+            w.finalize()?;
+        }
+    }
 
-    // Close the tee so the transcription worker knows recording ended; it then
-    // drains any remaining backlog and persists/emits the final lines on its own
-    // thread. We deliberately do NOT join it: if the worker fell behind real time
-    // it could take a while to catch up, and `stop_recording` must return
-    // promptly so the UI can react. Dropping the handle detaches the thread.
-    drop(tee);
+    // Close the tees so the mixer (then the pipeline) drains its backlog, persists
+    // the final lines, and exits on its own thread. We deliberately do NOT join
+    // them: a worker that fell behind real time could take a while to catch up,
+    // and `stop_recording` must return promptly. Dropping the handles detaches.
+    drop(mic_tee);
+    drop(sys_tee);
+    drop(mixer);
     drop(pipeline);
     Ok(())
 }
 
-/// Convert a callback buffer to 16-bit samples, append them to the WAV, record
-/// the buffer's peak amplitude (0.0..1.0) into `peak` for the UI meter, and —
-/// when live transcription is on — forward a normalized `f32` copy over `tee` to
-/// the transcription worker. Sending never blocks the audio thread for long: the
-/// channel is unbounded and the receiver only does heavy work on its own thread.
+/// 16-bit PCM WAV spec for a captured source.
+fn wav_spec(channels: u16, sample_rate: u32) -> hound::WavSpec {
+    hound::WavSpec {
+        channels,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    }
+}
+
+/// One source inside the mixer: its resampler to 16 kHz mono and the buffer of
+/// resampled samples awaiting mixing.
+struct MixSource {
+    resampler: Resampler16k,
+    channels: u16,
+    buf: Vec<f32>,
+}
+
+/// Mixer thread: resample every source to 16 kHz mono and sum them into one
+/// stream for the transcription pipeline.
+///
+/// `sources[i]` is the `(sample_rate, channels)` of source index `i`. Each
+/// incoming [`SourceChunk`] is downmixed and resampled, then the overlapping
+/// portion across all sources is summed and forwarded; `captured` is advanced by
+/// the 16 kHz frames emitted, so the pipeline's backlog clock stays correct.
+fn run_mixer(
+    rx: mpsc::Receiver<SourceChunk>,
+    sources: Vec<(u32, u16)>,
+    tx: mpsc::Sender<Vec<f32>>,
+    captured: Arc<AtomicU64>,
+) {
+    let mut srcs: Vec<MixSource> = Vec::with_capacity(sources.len());
+    for (rate, channels) in sources {
+        match Resampler16k::new(rate) {
+            Ok(resampler) => srcs.push(MixSource {
+                resampler,
+                channels,
+                buf: Vec::new(),
+            }),
+            Err(e) => {
+                eprintln!("mixer resampler init failed: {e}");
+                return;
+            }
+        }
+    }
+
+    for chunk in rx.iter() {
+        if let Some(src) = srcs.get_mut(chunk.source) {
+            let mono = downmix(&chunk.interleaved, src.channels);
+            let mut out = Vec::new();
+            if src.resampler.push(&mono, &mut out).is_ok() {
+                src.buf.extend_from_slice(&out);
+            }
+        }
+        emit_mixed(&mut srcs, &tx, &captured);
+    }
+
+    // Channel closed: flush the overlap, then the single remaining tail (the other
+    // sources are silent by now), so no captured audio is dropped.
+    emit_mixed(&mut srcs, &tx, &captured);
+    for src in &mut srcs {
+        if !src.buf.is_empty() {
+            let tail = std::mem::take(&mut src.buf);
+            captured.fetch_add(tail.len() as u64, Ordering::Relaxed);
+            let _ = tx.send(tail);
+        }
+    }
+}
+
+/// Sum the overlapping (min-length) prefix of every source's 16 kHz mono buffer,
+/// forward it, and drain those samples. Bounds memory if a source stalls (e.g. a
+/// misconfigured system device producing nothing) by dropping its oldest samples.
+fn emit_mixed(srcs: &mut [MixSource], tx: &mpsc::Sender<Vec<f32>>, captured: &AtomicU64) {
+    // Safety valve: if one source falls far behind, drop its oldest samples so the
+    // lead buffer can't grow without bound. Normal (clocked) sources stay near-empty.
+    const MAX_BUF: usize = 5 * TARGET_RATE as usize;
+    for s in srcs.iter_mut() {
+        if s.buf.len() > MAX_BUF {
+            let excess = s.buf.len() - MAX_BUF;
+            s.buf.drain(..excess);
+        }
+    }
+
+    let n = srcs.iter().map(|s| s.buf.len()).min().unwrap_or(0);
+    if n == 0 {
+        return;
+    }
+    let mut mixed = vec![0f32; n];
+    for s in srcs.iter_mut() {
+        for (i, v) in s.buf.iter().take(n).enumerate() {
+            mixed[i] += *v;
+        }
+        s.buf.drain(..n);
+    }
+    for v in mixed.iter_mut() {
+        *v = v.clamp(-1.0, 1.0);
+    }
+    captured.fetch_add(n as u64, Ordering::Relaxed);
+    let _ = tx.send(mixed);
+}
+
+/// Convert a callback buffer to 16-bit samples, append them to the WAV (when a
+/// writer is present), record the buffer's peak amplitude into `peak` for the UI
+/// meter, and — when transcription is on — forward a normalized `f32` copy tagged
+/// with `source` over `tee` to the mixer. Sending never blocks the audio thread
+/// for long: the channel is unbounded and the mixer does its work on its own thread.
 fn write_samples<T: Copy>(
     data: &[T],
     writer: &SharedWriter,
     peak: &AtomicU32,
-    tee: Option<&mpsc::Sender<Vec<f32>>>,
-    captured: &AtomicU64,
-    channels: u16,
+    tee: Option<&mpsc::Sender<SourceChunk>>,
+    source: usize,
     to_i16: impl Fn(T) -> i16,
 ) {
-    // Account for the audio captured this callback in mono frames (matching the
-    // worker's `downmix` accounting), so it can measure how far behind it is.
-    captured.fetch_add((data.len() / channels.max(1) as usize) as u64, Ordering::Relaxed);
-
+    let want_tee = tee.is_some();
     let mut buffer_peak = 0.0f32;
-    let mut tee_buf = if tee.is_some() {
+    let mut tee_buf = if want_tee {
         Vec::with_capacity(data.len())
     } else {
         Vec::new()
     };
     if let Ok(mut guard) = writer.lock() {
-        if let Some(w) = guard.as_mut() {
-            for &sample in data {
-                let s = to_i16(sample);
-                let _ = w.write_sample(s);
-                let amp = (s as f32).abs() / 32767.0;
-                if amp > buffer_peak {
-                    buffer_peak = amp;
-                }
-                if tee.is_some() {
-                    tee_buf.push(s as f32 / 32768.0);
-                }
+        let mut w = guard.as_mut();
+        for &sample in data {
+            let s = to_i16(sample);
+            if let Some(writer) = w.as_mut() {
+                let _ = writer.write_sample(s);
+            }
+            let amp = (s as f32).abs() / 32767.0;
+            if amp > buffer_peak {
+                buffer_peak = amp;
+            }
+            if want_tee {
+                tee_buf.push(s as f32 / 32768.0);
             }
         }
     }
     if let Some(tx) = tee {
         if !tee_buf.is_empty() {
-            let _ = tx.send(tee_buf);
+            let _ = tx.send(SourceChunk {
+                source,
+                interleaved: tee_buf,
+            });
         }
     }
     // Keep the highest peak across callbacks until the loop reads and resets it.

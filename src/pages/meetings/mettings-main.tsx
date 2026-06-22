@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import toast from "react-hot-toast";
@@ -10,7 +11,13 @@ import DataTableMain from "@/components/shared/tables/data-table-main";
 import AppDialog from "@/components/shared/dialogs/app-dialog";
 import { DataTableActions, DataTableColumns } from "@/interfaces/shared-interfaces";
 import { meetingsAtom } from "@/atoms/meetings-atoms";
-import { MeetingDetail } from "./mock-data";
+import {
+  Meeting,
+  createMeeting,
+  deleteMeeting,
+  listMeetings,
+  updateMeeting,
+} from "@/services/meetings";
 import { MeetingForm } from "./components/meeting-form";
 
 const columns: DataTableColumns[] = [
@@ -45,7 +52,17 @@ export function MeetingsMain() {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useAtom(meetingsAtom);
   const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<MeetingDetail | null>(null);
+  const [editing, setEditing] = useState<Meeting | null>(null);
+
+  // Hydrate the in-session cache from the database on first mount.
+  useEffect(() => {
+    listMeetings()
+      .then(setMeetings)
+      .catch((err) => {
+        console.error("Failed to load meetings", err);
+        toast.error("Could not load meetings");
+      });
+  }, [setMeetings]);
 
   // Table rows derive from the meeting list — keep a row shape that sorts/searches cleanly.
   const rows = meetings.map((m) => ({
@@ -71,19 +88,48 @@ export function MeetingsMain() {
         if (target) setEditing(target);
       },
     },
+    {
+      title: "Delete meeting",
+      icon: <DeleteOutlineIcon fontSize="small" />,
+      calBackFunction: (row: { id: string }) => handleDelete(row.id),
+    },
   ];
 
-  const handleCreate = (meeting: MeetingDetail) => {
-    setMeetings((prev) => [meeting, ...prev]);
-    setAddOpen(false);
-    toast.success("Meeting created");
-    navigate(`/main/meeting/${meeting.id}`);
+  const handleCreate = async (meeting: Meeting) => {
+    try {
+      const saved = await createMeeting(meeting);
+      setMeetings((prev) => [saved, ...prev]);
+      setAddOpen(false);
+      toast.success("Meeting created");
+      navigate(`/main/meeting/${saved.id}`);
+    } catch (err) {
+      console.error("Failed to create meeting", err);
+      toast.error("Could not create meeting");
+    }
   };
 
-  const handleUpdate = (meeting: MeetingDetail) => {
-    setMeetings((prev) => prev.map((m) => (m.id === meeting.id ? meeting : m)));
-    setEditing(null);
-    toast.success("Meeting updated");
+  const handleUpdate = async (meeting: Meeting) => {
+    try {
+      const saved = await updateMeeting(meeting);
+      setMeetings((prev) => prev.map((m) => (m.id === saved.id ? saved : m)));
+      setEditing(null);
+      toast.success("Meeting updated");
+    } catch (err) {
+      console.error("Failed to update meeting", err);
+      toast.error("Could not update meeting");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this meeting and all of its recordings?")) return;
+    try {
+      await deleteMeeting(id);
+      setMeetings((prev) => prev.filter((m) => m.id !== id));
+      toast.success("Meeting deleted");
+    } catch (err) {
+      console.error("Failed to delete meeting", err);
+      toast.error("Could not delete meeting");
+    }
   };
 
   return (

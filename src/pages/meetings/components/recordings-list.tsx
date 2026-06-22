@@ -18,7 +18,7 @@ import {
   mergeRecordings,
   SavedRecording,
 } from "@/services/recording";
-import { MeetingDetail } from "../mock-data";
+import { Meeting } from "@/services/meetings";
 
 /** Human-readable file size. */
 function formatSize(bytes: number): string {
@@ -47,7 +47,7 @@ export function RecordingsList({
   meeting,
   refreshSignal,
 }: {
-  meeting: MeetingDetail;
+  meeting: Meeting;
   refreshSignal?: number;
 }) {
   const [recordings, setRecordings] = useState<SavedRecording[]>([]);

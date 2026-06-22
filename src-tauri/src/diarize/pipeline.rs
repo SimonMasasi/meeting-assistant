@@ -65,6 +65,7 @@ pub struct TranscriptionStatus {
 /// Entry point for the worker thread. Never panics: any setup/inference failure
 /// is reported to the frontend via a `transcription-error` event and ends the
 /// worker without affecting the WAV recording running on the capture thread.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     app: tauri::AppHandle,
     meeting_id: String,
@@ -72,6 +73,7 @@ pub fn run(
     input_rate: u32,
     channels: u16,
     models: ModelPaths,
+    language: String,
     rx: Receiver<Vec<f32>>,
     captured: Arc<AtomicU64>,
 ) {
@@ -83,6 +85,7 @@ pub fn run(
         input_rate,
         channels,
         models,
+        &language,
         rx,
         &captured,
     ) {
@@ -111,6 +114,7 @@ fn emit_status(app: &tauri::AppHandle, state: &'static str, received_ms: i64, pr
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_inner(
     app: &tauri::AppHandle,
     meeting_id: &str,
@@ -118,6 +122,7 @@ fn run_inner(
     input_rate: u32,
     channels: u16,
     models: ModelPaths,
+    language: &str,
     rx: Receiver<Vec<f32>>,
     captured: &AtomicU64,
 ) -> Result<()> {
@@ -127,7 +132,7 @@ fn run_inner(
         encoder: path(&models.whisper_encoder),
         decoder: path(&models.whisper_decoder),
         tokens: path(&models.whisper_tokens),
-        language: "en".into(),
+        language: language.into(),
         ..Default::default()
     })
     .map_err(|e| Error::Transcription(format!("whisper init failed: {e}")))?;
