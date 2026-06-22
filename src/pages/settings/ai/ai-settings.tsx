@@ -1,20 +1,27 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import toast from "react-hot-toast";
 import {
+  Autocomplete,
+  Box,
   Button,
+  CircularProgress,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
   TextField,
+  Tooltip,
 } from "@mui/material";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import { loadingAtom } from "@/atoms/shared-atoms";
 import {
   AI_DEFAULTS,
   AiSettings as AiSettingsModel,
   getAiSettings,
+  listLocalModels,
   setAiSettings,
 } from "@/services/ai";
 
@@ -66,6 +73,43 @@ const ROLES: Role[] = [
   },
 ];
 
+/** Current documented models per provider and role. `local` has no static list —
+ *  its models are pulled live from the running server. Edit these as providers
+ *  ship new models; the field is a free-text combobox so anything missing here
+ *  can still be typed. */
+const MODEL_OPTIONS: Record<
+  string,
+  Partial<Record<Role["prefix"], string[]>>
+> = {
+  openai: {
+    stt: ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"],
+    tts: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"],
+    chat: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o3", "o4-mini"],
+  },
+  anthropic: {
+    chat: [
+      "claude-opus-4-8",
+      "claude-opus-4-7",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+    ],
+  },
+};
+
+/** Shared field styling matching the dynamic-form selects. */
+const fieldSx = {
+  width: "100%",
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "12px",
+    "&:hover fieldset": { borderColor: "#2663EB" },
+    "&.Mui-focused fieldset": {
+      borderColor: "#3b82f6",
+      boxShadow: "0 0 0 3px rgba(59,130,246,0.12)",
+    },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#3b82f6" },
+};
+
 /** Per-provider default endpoint used when switching a role's provider. */
 function defaultBaseUrl(provider: string): string {
   switch (provider) {
@@ -87,6 +131,100 @@ function withDefaults(saved: AiSettingsModel): AiSettingsModel {
     if (!merged[field]) merged[field] = AI_DEFAULTS[field];
   });
   return merged;
+}
+
+interface ModelAutocompleteProps {
+  provider: string;
+  prefix: Role["prefix"];
+  baseUrl: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}
+
+/** Editable model picker: a dropdown of known models that still accepts free
+ *  text. For the `local` provider the options are the models installed on the
+ *  server at `baseUrl`, fetched on mount / base-URL change and via a refresh
+ *  button; for OpenAI / Anthropic they come from the curated `MODEL_OPTIONS`. */
+function ModelAutocomplete({
+  provider,
+  prefix,
+  baseUrl,
+  value,
+  placeholder,
+  onChange,
+}: ModelAutocompleteProps) {
+  const isLocal = provider === "local";
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshLocal = useCallback(async () => {
+    if (!isLocal || !baseUrl.trim()) {
+      setLocalModels([]);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      setLocalModels(await listLocalModels(baseUrl));
+    } catch (err) {
+      console.error("Failed to list local models", err);
+      setLocalModels([]);
+      setError("Couldn't reach the server — type the model name manually.");
+    } finally {
+      setLoading(false);
+    }
+  }, [isLocal, baseUrl]);
+
+  // Re-fetch whenever the provider switches to local or its base URL changes.
+  useEffect(() => {
+    refreshLocal();
+  }, [refreshLocal]);
+
+  const options = isLocal ? localModels : MODEL_OPTIONS[provider]?.[prefix] ?? [];
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.5, minWidth: 240 }}>
+      <Autocomplete
+        freeSolo
+        options={options}
+        inputValue={value}
+        onInputChange={(_, v) => onChange(v)}
+        sx={{ flex: 1, minWidth: 220 }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            size="small"
+            label="Model"
+            placeholder={placeholder}
+            error={Boolean(error)}
+            helperText={error ?? undefined}
+            sx={fieldSx}
+          />
+        )}
+      />
+      {isLocal && (
+        <Tooltip title="Refresh installed models">
+          <span>
+            <IconButton
+              size="small"
+              onClick={refreshLocal}
+              disabled={loading}
+              sx={{ mt: 0.5 }}
+            >
+              {loading ? (
+                <CircularProgress size={16} />
+              ) : (
+                <RefreshOutlinedIcon fontSize="small" />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+    </Box>
+  );
 }
 
 export function AiSettings() {
@@ -205,15 +343,13 @@ export function AiSettings() {
                     </Select>
                   </FormControl>
 
-                  <TextField
-                    size="small"
-                    label="Model"
-                    sx={{ minWidth: 220 }}
-                    placeholder={role.defaults.model}
+                  <ModelAutocomplete
+                    provider={provider}
+                    prefix={role.prefix}
+                    baseUrl={settings[`${role.prefix}_base_url`] as string}
                     value={settings[`${role.prefix}_model`] as string}
-                    onChange={(e) =>
-                      setField(role.prefix, "model", e.target.value)
-                    }
+                    placeholder={role.defaults.model}
+                    onChange={(v) => setField(role.prefix, "model", v)}
                   />
 
                   {!isLocal && (

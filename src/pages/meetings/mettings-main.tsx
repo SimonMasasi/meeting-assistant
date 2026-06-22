@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import toast from "react-hot-toast";
@@ -10,18 +11,10 @@ import AppDialog from "@/components/shared/dialogs/app-dialog";
 import { DataTableActions, DataTableColumns } from "@/interfaces/shared-interfaces";
 import { meetingsAtom } from "@/atoms/meetings-atoms";
 import { MeetingDetail } from "./mock-data";
-import { AddMeetingForm } from "./components/add-meeting-form";
-
-const statusColors: Record<string, string> = {
-  Completed: "bg-green-100 text-green-700",
-  Ongoing: "bg-blue-100 text-blue-700",
-  Upcoming: "bg-yellow-100 text-yellow-700",
-  Cancelled: "bg-red-100 text-red-700",
-};
+import { MeetingForm } from "./components/meeting-form";
 
 const columns: DataTableColumns[] = [
   { id: "title", label: "Meeting Title", minWidth: 200, sortable: true },
-  { id: "host", label: "Host", minWidth: 140, sortable: true },
   {
     id: "date",
     label: "Date & Time",
@@ -45,21 +38,6 @@ const columns: DataTableColumns[] = [
     ),
   },
   { id: "attendees", label: "Attendees", minWidth: 100, sortable: true },
-  {
-    id: "status",
-    label: "Status",
-    minWidth: 120,
-    sortable: true,
-    format: (value: string) => (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-          statusColors[value] ?? "bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300"
-        }`}
-      >
-        {value}
-      </span>
-    ),
-  },
   { id: "actions", label: "Actions", minWidth: 90, align: "right" },
 ];
 
@@ -67,16 +45,15 @@ export function MeetingsMain() {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useAtom(meetingsAtom);
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<MeetingDetail | null>(null);
 
   // Table rows derive from the meeting list — keep a row shape that sorts/searches cleanly.
   const rows = meetings.map((m) => ({
     id: m.id,
     title: m.title,
-    host: m.host,
     date: `${m.date}, ${m.time}`,
     source: m.source,
     attendees: m.attendees,
-    status: m.status,
   }));
 
   const actions: DataTableActions[] = [
@@ -86,6 +63,14 @@ export function MeetingsMain() {
       calBackFunction: (row: { id: string }) =>
         navigate(`/main/meeting/${row.id}`),
     },
+    {
+      title: "Edit meeting",
+      icon: <EditOutlinedIcon fontSize="small" />,
+      calBackFunction: (row: { id: string }) => {
+        const target = meetings.find((m) => m.id === row.id);
+        if (target) setEditing(target);
+      },
+    },
   ];
 
   const handleCreate = (meeting: MeetingDetail) => {
@@ -93,6 +78,12 @@ export function MeetingsMain() {
     setAddOpen(false);
     toast.success("Meeting created");
     navigate(`/main/meeting/${meeting.id}`);
+  };
+
+  const handleUpdate = (meeting: MeetingDetail) => {
+    setMeetings((prev) => prev.map((m) => (m.id === meeting.id ? meeting : m)));
+    setEditing(null);
+    toast.success("Meeting updated");
   };
 
   return (
@@ -120,7 +111,19 @@ export function MeetingsMain() {
         onclose={() => setAddOpen(false)}
         title="Add Meeting"
         size="md"
-        dialogContent={<AddMeetingForm onCreate={handleCreate} />}
+        dialogContent={<MeetingForm onSubmit={handleCreate} />}
+      />
+
+      <AppDialog
+        open={Boolean(editing)}
+        onclose={() => setEditing(null)}
+        title="Edit Meeting"
+        size="md"
+        dialogContent={
+          editing ? (
+            <MeetingForm meeting={editing} onSubmit={handleUpdate} />
+          ) : undefined
+        }
       />
     </div>
   );

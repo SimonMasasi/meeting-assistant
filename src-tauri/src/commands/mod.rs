@@ -7,6 +7,7 @@ pub mod greet;
 pub mod mail;
 pub mod mic_permission;
 pub mod microphone;
+pub mod models;
 pub mod recordings;
 pub mod storage;
 pub mod transcription;

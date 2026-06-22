@@ -28,6 +28,7 @@ pub fn run() {
             commands::mail::set_mail_settings,
             commands::ai::get_ai_settings,
             commands::ai::set_ai_settings,
+            commands::models::list_local_models,
             commands::microphone::list_microphones,
             commands::microphone::start_recording,
             commands::microphone::stop_recording,

@@ -57,3 +57,11 @@ export const getAiSettings = () => invoke<AiSettings>("get_ai_settings");
 /** Persist the user's AI provider settings. */
 export const setAiSettings = (settings: AiSettings) =>
   invoke<void>("set_ai_settings", { settings });
+
+/**
+ * List the models installed on a local / self-hosted server (Ollama, LM Studio,
+ * …) reachable at `baseUrl`. Used to populate the model picker for the "local"
+ * provider. Throws if the server is unreachable; callers fall back to free text.
+ */
+export const listLocalModels = (baseUrl: string) =>
+  invoke<string[]>("list_local_models", { baseUrl });
