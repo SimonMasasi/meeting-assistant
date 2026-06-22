@@ -79,7 +79,7 @@ export function MeetingDetailPage() {
         {/* Left (primary focus): live transcript + AI notes/summary */}
         <div className="xl:col-span-2 space-y-6">
           <TranscriptPanel meeting={meeting} />
-          <NotesKeyPoints meeting={meeting} />
+          <NotesKeyPoints meetingId={meeting.id} />
         </div>
 
         {/* Right (secondary): recording controls, objective + small playback */}

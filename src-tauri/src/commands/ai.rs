@@ -4,23 +4,23 @@
 //! its own provider name, API key, model name and base URL. Stored as the
 //! single row (`id = 1`) of the `ai_settings` table.
 
-use sqlx::Row;
+use sqlx::{Pool, Row, Sqlite};
 
 use crate::db::pool;
 use crate::error::Result;
 use crate::settings::AiSettings;
 
-/// Return the saved AI provider settings, or blank defaults when none are set.
-#[tauri::command]
-pub async fn get_ai_settings(app: tauri::AppHandle) -> Result<AiSettings> {
-    let pool = pool(&app).await?;
+/// Read the saved AI provider settings from the database, or blank defaults when
+/// no row exists yet. Shared by [`get_ai_settings`] and other commands (e.g. the
+/// summary generator) that need the configured Chat provider.
+pub async fn fetch_ai_settings(pool: &Pool<Sqlite>) -> Result<AiSettings> {
     let row = sqlx::query(
         "SELECT stt_provider, stt_api_key, stt_model, stt_base_url,
                 tts_provider, tts_api_key, tts_model, tts_base_url,
                 chat_provider, chat_api_key, chat_model, chat_base_url
          FROM ai_settings WHERE id = 1",
     )
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(match row {
@@ -40,6 +40,13 @@ pub async fn get_ai_settings(app: tauri::AppHandle) -> Result<AiSettings> {
         },
         None => AiSettings::default(),
     })
+}
+
+/// Return the saved AI provider settings, or blank defaults when none are set.
+#[tauri::command]
+pub async fn get_ai_settings(app: tauri::AppHandle) -> Result<AiSettings> {
+    let pool = pool(&app).await?;
+    fetch_ai_settings(&pool).await
 }
 
 /// Persist the AI provider settings.

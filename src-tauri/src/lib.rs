@@ -42,6 +42,8 @@ pub fn run() {
             commands::transcription::ensure_transcription_models,
             commands::transcription::get_transcript,
             commands::transcription::rename_speaker,
+            commands::summary::get_meeting_summary,
+            commands::summary::generate_meeting_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

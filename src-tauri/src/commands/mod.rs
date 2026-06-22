@@ -10,4 +10,5 @@ pub mod microphone;
 pub mod models;
 pub mod recordings;
 pub mod storage;
+pub mod summary;
 pub mod transcription;

@@ -1,21 +1,91 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
-import { ActionItem, MeetingDetail } from "../mock-data";
+import { ActionItem } from "../mock-data";
+import {
+  generateMeetingSummary,
+  getMeetingSummary,
+  MeetingSummary,
+} from "@/services/summary";
+import { getTranscript } from "@/services/transcription";
 
-export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
-  const [items, setItems] = useState<ActionItem[]>(meeting.actionItems);
+export function NotesKeyPoints({ meetingId }: { meetingId: string }) {
+  const [summary, setSummary] = useState<MeetingSummary | null>(null);
+  // Action-item completion is presentational (toggled locally), seeded from the
+  // generated summary; persisting `done` is out of scope.
+  const [items, setItems] = useState<ActionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [hasTranscript, setHasTranscript] = useState(false);
+  // Ensures the one-time auto-generate fires at most once per meeting.
+  const autoTriedRef = useRef(false);
+
+  useEffect(() => {
+    setItems(summary?.actionItems ?? []);
+  }, [summary]);
+
+  const generate = useCallback(async () => {
+    setGenerating(true);
+    try {
+      const result = await generateMeetingSummary(meetingId);
+      setSummary(result);
+    } catch (e) {
+      toast.error(typeof e === "string" ? e : "Failed to generate summary");
+    } finally {
+      setGenerating(false);
+    }
+  }, [meetingId]);
+
+  // Load the saved summary; if none exists yet, auto-generate once when there's
+  // a transcript to summarize.
+  useEffect(() => {
+    let active = true;
+    autoTriedRef.current = false;
+    setLoading(true);
+    setSummary(null);
+    setHasTranscript(false);
+
+    (async () => {
+      try {
+        const existing = await getMeetingSummary(meetingId).catch(() => null);
+        if (!active) return;
+        if (existing) {
+          setSummary(existing);
+          return;
+        }
+        const segments = await getTranscript(meetingId).catch(() => []);
+        if (!active) return;
+        setHasTranscript(segments.length > 0);
+        if (segments.length > 0 && !autoTriedRef.current) {
+          autoTriedRef.current = true;
+          await generate();
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [meetingId, generate]);
 
   const completed = items.filter((i) => i.done).length;
-  const progress = Math.round((completed / items.length) * 100);
+  const progress = items.length
+    ? Math.round((completed / items.length) * 100)
+    : 0;
 
   const toggle = (id: string) =>
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, done: !i.done } : i))
     );
+
+  const busy = loading || generating;
+  const showEmpty = !summary && !busy;
 
   return (
     <div className="intro-y space-y-4">
@@ -32,35 +102,49 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
             <div>
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Summary</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-                {meeting.summary}
+                {summary?.summary
+                  ? summary.summary
+                  : busy
+                  ? "Generating summary…"
+                  : hasTranscript
+                  ? "No summary yet. Use the button to generate one from the transcript."
+                  : "Record the meeting to generate an AI summary."}
               </p>
             </div>
 
-            <div className="mt-5">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Key Points</h3>
-              <ul className="mt-2 space-y-2">
-                {meeting.keyPoints.map((point, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    <AutoAwesomeIcon
-                      sx={{ fontSize: 16 }}
-                      className="mt-0.5 text-accent-500 flex-shrink-0"
-                    />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {summary && summary.keyPoints.length > 0 && (
+              <div className="mt-5">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Key Points</h3>
+                <ul className="mt-2 space-y-2">
+                  {summary.keyPoints.map((point, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <AutoAwesomeIcon
+                        sx={{ fontSize: 16 }}
+                        className="mt-0.5 text-accent-500 flex-shrink-0"
+                      />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
-          {/* AI status pill */}
+          {/* AI status pill + regenerate */}
           <div className="mt-5 flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-secondary-500 to-accent-500 shadow">
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-              AI Summarizing
-            </span>
+            {generating ? (
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-secondary-500 to-accent-500 shadow">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                AI Summarizing
+              </span>
+            ) : (
+              <span />
+            )}
             <button
               aria-label="Regenerate summary"
-              className="flex items-center justify-center w-9 h-9 rounded-full bg-white dark:bg-slate-800 shadow hover:shadow-md text-accent-500 transition-shadow"
+              onClick={generate}
+              disabled={busy}
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-white dark:bg-slate-800 shadow hover:shadow-md text-accent-500 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <LightbulbOutlinedIcon sx={{ fontSize: 20 }} />
             </button>
@@ -84,37 +168,47 @@ export function NotesKeyPoints({ meeting }: { meeting: MeetingDetail }) {
             />
           </div>
 
-          <ul className="mt-4 space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
-            {items.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => toggle(item.id)}
-                  className="flex items-center gap-2.5 w-full text-left group rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
-                >
-                  {item.done ? (
-                    <CheckCircleIcon
-                      sx={{ fontSize: 20 }}
-                      className="text-success-500 flex-shrink-0 animate-scale-in"
-                    />
-                  ) : (
-                    <RadioButtonUncheckedIcon
-                      sx={{ fontSize: 20 }}
-                      className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 flex-shrink-0 transition-colors"
-                    />
-                  )}
-                  <span
-                    className={`text-sm transition-colors duration-200 ${
-                      item.done
-                        ? "line-through text-slate-400 dark:text-slate-500"
-                        : "text-slate-600 dark:text-slate-300"
-                    }`}
+          {items.length > 0 ? (
+            <ul className="mt-4 space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    onClick={() => toggle(item.id)}
+                    className="flex items-center gap-2.5 w-full text-left group rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
                   >
-                    {item.label}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                    {item.done ? (
+                      <CheckCircleIcon
+                        sx={{ fontSize: 20 }}
+                        className="text-success-500 flex-shrink-0 animate-scale-in"
+                      />
+                    ) : (
+                      <RadioButtonUncheckedIcon
+                        sx={{ fontSize: 20 }}
+                        className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 flex-shrink-0 transition-colors"
+                      />
+                    )}
+                    <span
+                      className={`text-sm transition-colors duration-200 ${
+                        item.done
+                          ? "line-through text-slate-400 dark:text-slate-500"
+                          : "text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 flex-1 text-sm text-slate-400 dark:text-slate-500">
+              {busy
+                ? "Looking for action items…"
+                : showEmpty
+                ? "No action items yet."
+                : "No action items found."}
+            </p>
+          )}
 
           <button className="mt-4 w-full py-2.5 rounded-xl border border-primary-200 text-primary-600 text-sm font-semibold hover:bg-primary-50 transition-colors">
             Assign Tasks

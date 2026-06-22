@@ -46,6 +46,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0004_create_transcripts_table.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "create_meeting_summaries_table",
+            sql: include_str!("../migrations/0005_create_meeting_summaries_table.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
