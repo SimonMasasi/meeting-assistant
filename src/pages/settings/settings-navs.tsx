@@ -2,10 +2,16 @@ import { Mail } from "@mui/icons-material";
 import { Folder } from "@mui/icons-material";
 import { SmartToy } from "@mui/icons-material";
 import { GraphicEq } from "@mui/icons-material";
+import { SwapHoriz } from "@mui/icons-material";
 import { cardLayoutProps } from "../../interfaces/shared-interfaces";
 
 export const settingsNavs:cardLayoutProps[] = [
 
+    {
+        name:"Mode",
+        icon:<SwapHoriz></SwapHoriz>,
+        to:"mode"
+    },
     {
         name:"AI Settings",
         icon:<SmartToy></SmartToy>,

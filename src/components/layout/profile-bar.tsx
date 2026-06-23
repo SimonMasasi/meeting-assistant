@@ -8,8 +8,11 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { Edit, Logout, Person } from "@mui/icons-material";
+import { Edit, Logout, Person, SwapHoriz } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import { useAtomValue } from "jotai";
+import { appModeAtom } from "@/atoms/app-mode-atoms";
+import { useSession } from "@/hooks/auth";
 
 const AVATAR_SIZE = 36;
 
@@ -21,16 +24,28 @@ export function ProfileBar() {
   );
 
   const navigate = useNavigate();
+  const mode = useAtomValue(appModeAtom);
+  const { session, signOut } = useSession();
 
-  const handleCloseUserMenu = () => {
-    setAnchorElUser(null);
-    navigate("/");
+  const closeMenu = () => setAnchorElUser(null);
+
+  // Logout clears the session; cloud returns to login, local back to the chooser.
+  const handleLogout = () => {
+    closeMenu();
+    signOut();
+    navigate(mode === "cloud" ? "/login" : "/mode-select", { replace: true });
+  };
+
+  const handleSwitchMode = () => {
+    closeMenu();
+    navigate("/mode-select");
   };
 
   const menuItems = [
-  { name: "Profile", icon: <Person fontSize="small" />, danger: false , calBackFunction: () => {}},
-  { name: "Change Password", icon: <Edit fontSize="small" />, danger: false, calBackFunction: () => {} },
-  { name: "Logout", icon: <Logout fontSize="small" />, danger: true, calBackFunction: () => handleCloseUserMenu() },
+  { name: "Profile", icon: <Person fontSize="small" />, danger: false , calBackFunction: closeMenu},
+  { name: "Change Password", icon: <Edit fontSize="small" />, danger: false, calBackFunction: closeMenu },
+  { name: "Switch mode", icon: <SwapHoriz fontSize="small" />, danger: false, calBackFunction: handleSwitchMode },
+  { name: "Logout", icon: <Logout fontSize="small" />, danger: true, calBackFunction: handleLogout },
 ];
 
 
@@ -65,7 +80,7 @@ export function ProfileBar() {
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         open={Boolean(anchorElUser)}
-        onClose={handleCloseUserMenu}
+        onClose={closeMenu}
         slotProps={{
           paper: {
             elevation: 3,
@@ -76,10 +91,10 @@ export function ProfileBar() {
         {/* User info header */}
         <Box sx={{ px: 2, py: 1.5 }}>
           <Typography variant="subtitle2" fontWeight={600} noWrap>
-            Welcome back
+            {session?.email ?? "Welcome back"}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
-            Administrator
+            {mode === "cloud" ? "Cloud mode" : "Local mode"}
           </Typography>
         </Box>
 

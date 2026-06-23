@@ -2,6 +2,9 @@ import GoogleIcon from '@mui/icons-material/Google';
 import AppleIcon from '@mui/icons-material/Apple';
 import EmailIcon from '@mui/icons-material/Email';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import { useSetAtom } from 'jotai';
+import { useNavigate } from 'react-router-dom';
+import { appModeAtom } from '@/atoms/app-mode-atoms';
 import emblem from '../../../../assets/images/meeting.webp';
 
 interface LoginOptionsProps {
@@ -35,6 +38,14 @@ const AUTH_PROVIDERS = [
 ] as const;
 
 export function LoginOptions({ onEmailClick }: LoginOptionsProps) {
+  const setAppMode = useSetAtom(appModeAtom);
+  const navigate = useNavigate();
+
+  const continueLocal = () => {
+    setAppMode('local');
+    navigate('/main/dashboard', { replace: true });
+  };
+
   return (
     <>
       {/* Logo */}
@@ -70,9 +81,10 @@ export function LoginOptions({ onEmailClick }: LoginOptionsProps) {
         <div className="flex-1 h-px bg-neutral-200" />
       </div>
 
-      {/* Guest */}
+      {/* Guest → use the app in local (on-device) mode, no account. */}
       <button
         type="button"
+        onClick={continueLocal}
         className={`${BASE_BTN} border border-neutral-300 bg-white dark:bg-slate-800 hover:bg-neutral-50 text-neutral-600 dark:text-slate-400`}
       >
         <AccountCircleOutlinedIcon className="login-icon-md" />

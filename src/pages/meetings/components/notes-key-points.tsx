@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAtomValue } from "jotai";
 import toast from "react-hot-toast";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -12,8 +13,11 @@ import {
   MeetingSummary,
 } from "@/services/summary";
 import { getTranscript } from "@/services/transcription";
+import { appModeAtom } from "@/atoms/app-mode-atoms";
+import { CloudComingSoon } from "@/components/cloud/cloud-coming-soon";
 
 export function NotesKeyPoints({ meetingId }: { meetingId: string }) {
+  const appMode = useAtomValue(appModeAtom);
   const [summary, setSummary] = useState<MeetingSummary | null>(null);
   // Action-item completion is presentational (toggled locally), seeded from the
   // generated summary; persisting `done` is out of scope.
@@ -45,10 +49,19 @@ export function NotesKeyPoints({ meetingId }: { meetingId: string }) {
   useEffect(() => {
     let active = true;
     autoTriedRef.current = false;
-    setLoading(true);
     setSummary(null);
     setHasTranscript(false);
 
+    // Cloud mode summarizes via the cloud provider (not implemented yet) — skip
+    // the local summary load and show the seam placeholder instead.
+    if (appMode === "cloud") {
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setLoading(true);
     (async () => {
       try {
         const existing = await getMeetingSummary(meetingId).catch(() => null);
@@ -72,7 +85,7 @@ export function NotesKeyPoints({ meetingId }: { meetingId: string }) {
     return () => {
       active = false;
     };
-  }, [meetingId, generate]);
+  }, [meetingId, generate, appMode]);
 
   const completed = items.filter((i) => i.done).length;
   const progress = items.length
@@ -86,6 +99,18 @@ export function NotesKeyPoints({ meetingId }: { meetingId: string }) {
 
   const busy = loading || generating;
   const showEmpty = !summary && !busy;
+
+  if (appMode === "cloud") {
+    return (
+      <div className="intro-y space-y-4">
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+          <PushPinOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
+          <h2 className="text-base font-bold">Notes &amp; Key Points</h2>
+        </div>
+        <CloudComingSoon feature="AI summaries" />
+      </div>
+    );
+  }
 
   return (
     <div className="intro-y space-y-4">

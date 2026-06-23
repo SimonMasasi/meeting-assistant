@@ -9,6 +9,9 @@ import emblem from '../../../../assets/images/meeting.webp';
 import '../styles.css';
 import { ForgotPassword } from './forgot-password';
 import { useNavigate } from 'react-router-dom';
+import { useSetAtom } from 'jotai';
+import { appModeAtom } from '@/atoms/app-mode-atoms';
+import { useSession } from '@/hooks/auth';
 
 type Mode = 'signin' | 'signup';
 
@@ -59,16 +62,22 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
   const [showForgot, setShowForgot] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const setAppMode = useSetAtom(appModeAtom);
+  const { signIn } = useSession();
 
   const cfg = MODE_CONFIG[mode];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate authentication — replace with real API call
+    // Mock-accept for now: any credentials create a persisted session and pass
+    // the cloud gate. Swap this for the real cloud auth call later — the session
+    // plumbing and routing stay the same.
     setTimeout(() => {
-      navigate('main/dashboard');
-    }, 1800);
+      signIn(email.trim() || 'user@example.com');
+      setAppMode('cloud');
+      navigate('/main/dashboard', { replace: true });
+    }, 1200);
   };
 
   if (showForgot) {
@@ -194,6 +203,11 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
           )}
         </button>
       </form>
+
+      {/* Demo notice — real cloud auth lands with the cloud backend. */}
+      <p className="text-[11px] text-neutral-400 dark:text-slate-500 text-center mt-4">
+        Demo sign-in — cloud backend coming soon. Any email works for now.
+      </p>
 
       {/* Toggle mode */}
       <p className="text-xs text-neutral-500 dark:text-slate-400 text-center mt-6">

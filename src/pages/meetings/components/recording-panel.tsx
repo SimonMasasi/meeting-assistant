@@ -26,7 +26,10 @@ import {
   TranscriptionStatus,
   transcriptionModelsReady,
 } from "@/services/transcription";
+import { useAtomValue } from "jotai";
 import { Meeting } from "@/services/meetings";
+import { appModeAtom } from "@/atoms/app-mode-atoms";
+import { CloudComingSoon } from "@/components/cloud/cloud-coming-soon";
 import {
   getTranscriptionSettings,
   MODEL_SIZE_OPTIONS,
@@ -81,6 +84,7 @@ export function RecordingPanel({
   meeting: Meeting;
   onRecordingsChanged?: () => void;
 }) {
+  const appMode = useAtomValue(appModeAtom);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [saved, setSaved] = useState<SavedRecording | null>(null);
@@ -287,6 +291,20 @@ export function RecordingPanel({
       setBusy(false);
     }
   };
+
+  // In cloud mode, recording/transcription would go to the cloud provider —
+  // not implemented yet, so show the seam placeholder instead of the recorder.
+  if (appMode === "cloud") {
+    return (
+      <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5">
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-4">
+          <MicNoneOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
+          <h2 className="text-base font-bold">Live Recording</h2>
+        </div>
+        <CloudComingSoon feature="Recording & transcription" />
+      </div>
+    );
+  }
 
   return (
     <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 transition-shadow duration-300 hover:shadow-xl">
