@@ -22,7 +22,15 @@ function labelOrderOf(segments: TranscriptSegment[]): string[] {
   return seen;
 }
 
-export function TranscriptPanel({ meeting }: { meeting: Meeting }) {
+export function TranscriptPanel({
+  meeting,
+  refreshSignal,
+}: {
+  meeting: Meeting;
+  /** Bumped by the parent to force a reload from the DB (e.g. after a recording
+   *  is (re)transcribed), so stale lines are dropped before fresh ones stream in. */
+  refreshSignal?: number;
+}) {
   // Real, speaker-labeled lines from the on-device pipeline (persisted + live).
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
 
@@ -32,10 +40,11 @@ export function TranscriptPanel({ meeting }: { meeting: Meeting }) {
       .catch(() => {});
   }, [meeting.id]);
 
-  // Load whatever was previously transcribed for this meeting.
+  // Load whatever was previously transcribed for this meeting, and reload whenever
+  // the parent bumps refreshSignal.
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshSignal]);
 
   // Append lines live as the meeting is recorded. The event is global, so this
   // works regardless of which view started the recording.

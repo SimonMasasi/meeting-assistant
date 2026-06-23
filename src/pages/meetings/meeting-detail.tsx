@@ -50,6 +50,9 @@ export function MeetingDetailPage() {
   // Bumped whenever the recorder starts/stops so the saved-recordings list
   // (a sibling of the recorder) re-fetches and shows the new file right away.
   const [recordingsVersion, setRecordingsVersion] = useState(0);
+  // Bumped when a saved recording is (re)transcribed so the transcript panel
+  // reloads from the DB (dropping replaced lines before fresh ones stream in).
+  const [transcriptVersion, setTranscriptVersion] = useState(0);
 
   if (loading) {
     return (
@@ -115,8 +118,13 @@ export function MeetingDetailPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left (primary focus): live transcript + AI notes/summary */}
         <div className="xl:col-span-2 space-y-6">
-          <TranscriptPanel meeting={meeting} />
+          <TranscriptPanel meeting={meeting} refreshSignal={transcriptVersion} />
           <NotesKeyPoints meetingId={meeting.id} />
+          <RecordingsList
+            meeting={meeting}
+            refreshSignal={recordingsVersion}
+            onTranscriptChanged={() => setTranscriptVersion((v) => v + 1)}
+          />
         </div>
 
         {/* Right (secondary): recording controls, objective + small playback */}
@@ -125,7 +133,6 @@ export function MeetingDetailPage() {
             meeting={meeting}
             onRecordingsChanged={() => setRecordingsVersion((v) => v + 1)}
           />
-          <RecordingsList meeting={meeting} refreshSignal={recordingsVersion} />
           <MeetingObjective meeting={meeting} />
         </div>
       </div>

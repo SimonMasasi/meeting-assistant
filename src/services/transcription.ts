@@ -51,6 +51,17 @@ export function getTranscript(meetingId: string): Promise<TranscriptSegment[]> {
   return invoke<TranscriptSegment[]>("get_transcript", { meetingId });
 }
 
+/**
+ * (Re)transcribe an already-saved recording on demand. Any existing transcript
+ * for that recording is removed first, then it's run through the on-device
+ * pipeline; progress streams via the usual `transcript-line` /
+ * `transcription-status` events. Resolves once the worker is launched, not when
+ * it finishes — watch `onTranscriptionStatus` for the "done" state.
+ */
+export function transcribeRecording(recordingId: string): Promise<void> {
+  return invoke<void>("transcribe_recording", { recordingId });
+}
+
 /** Give a speaker cluster a display name, applied to all of its lines. */
 export function renameSpeaker(
   meetingId: string,

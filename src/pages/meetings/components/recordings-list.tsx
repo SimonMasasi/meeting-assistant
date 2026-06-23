@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { useAtomValue } from "jotai";
+import toast from "react-hot-toast";
 import Checkbox from "@mui/material/Checkbox";
 import IconButton from "@mui/material/IconButton";
 import LinearProgress from "@mui/material/LinearProgress";
@@ -10,6 +12,8 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import CallMergeRoundedIcon from "@mui/icons-material/CallMergeRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
+import SubtitlesOutlinedIcon from "@mui/icons-material/SubtitlesOutlined";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
 import AppDialog from "@/components/shared/dialogs/app-dialog";
 import {
   deleteRecording,
@@ -18,6 +22,14 @@ import {
   mergeRecordings,
   SavedRecording,
 } from "@/services/recording";
+import {
+  ensureTranscriptionModels,
+  onTranscriptionError,
+  onTranscriptionStatus,
+  transcribeRecording,
+  transcriptionModelsReady,
+} from "@/services/transcription";
+import { appModeAtom } from "@/atoms/app-mode-atoms";
 import { Meeting } from "@/services/meetings";
 
 /** Human-readable file size. */
@@ -46,10 +58,16 @@ function formatDuration(secs?: number): string {
 export function RecordingsList({
   meeting,
   refreshSignal,
+  onTranscriptChanged,
 }: {
   meeting: Meeting;
   refreshSignal?: number;
+  /** Called when a recording's transcript is (re)generated, so the parent can
+   *  refresh the transcript panel. Fired when transcription starts (prior lines
+   *  removed) and again when the worker reports "done". */
+  onTranscriptChanged?: () => void;
 }) {
+  const appMode = useAtomValue(appModeAtom);
   const [recordings, setRecordings] = useState<SavedRecording[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -58,6 +76,15 @@ export function RecordingsList({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recordingActive, setRecordingActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The recording currently being transcribed, if any (drives the row spinner).
+  const [transcribingId, setTranscribingId] = useState<string | null>(null);
+  // Mirror the in-flight flag and the callback in refs so the global event
+  // listeners (subscribed once) read current values without restale closures.
+  const transcribingRef = useRef(false);
+  const onTranscriptChangedRef = useRef(onTranscriptChanged);
+  useEffect(() => {
+    onTranscriptChangedRef.current = onTranscriptChanged;
+  }, [onTranscriptChanged]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +112,40 @@ export function RecordingsList({
     load();
   }, [load, refreshSignal]);
 
+  // Watch the (global) transcription worker so a post-hoc "Transcribe" finishes
+  // cleanly: clear the row spinner and refresh the transcript on "done", and
+  // surface failures. Only reacts when we started a transcription (transcribingRef).
+  useEffect(() => {
+    let unlistenStatus: (() => void) | null = null;
+    let unlistenError: (() => void) | null = null;
+    let active = true;
+    onTranscriptionStatus((s) => {
+      if (s.state === "done" && transcribingRef.current) {
+        transcribingRef.current = false;
+        setTranscribingId(null);
+        onTranscriptChangedRef.current?.();
+      }
+    }).then((fn) => {
+      if (active) unlistenStatus = fn;
+      else fn();
+    });
+    onTranscriptionError((msg) => {
+      if (transcribingRef.current) {
+        transcribingRef.current = false;
+        setTranscribingId(null);
+        toast.error(msg || "Transcription failed");
+      }
+    }).then((fn) => {
+      if (active) unlistenError = fn;
+      else fn();
+    });
+    return () => {
+      active = false;
+      if (unlistenStatus) unlistenStatus();
+      if (unlistenError) unlistenError();
+    };
+  }, []);
+
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -110,6 +171,38 @@ export function RecordingsList({
       await load();
     } catch (e) {
       setError(String(e));
+    }
+  };
+
+  const handleTranscribe = async (rec: SavedRecording) => {
+    if (
+      !window.confirm(
+        `Transcribe "${rec.fileName}"? Any existing transcript for it will be replaced.`,
+      )
+    )
+      return;
+    setError(null);
+    try {
+      // First use downloads the speech models, which can take a minute.
+      if (!(await transcriptionModelsReady())) {
+        const toastId = toast.loading("Downloading speech models…");
+        try {
+          await ensureTranscriptionModels();
+        } finally {
+          toast.dismiss(toastId);
+        }
+      }
+      transcribingRef.current = true;
+      setTranscribingId(rec.id);
+      await transcribeRecording(rec.id);
+      // The recording's prior lines were just removed server-side; refresh so the
+      // panel drops them before fresh lines stream in. "done" triggers a final one.
+      onTranscriptChangedRef.current?.();
+      toast.success("Transcribing… lines will appear in the transcript.");
+    } catch (e) {
+      transcribingRef.current = false;
+      setTranscribingId(null);
+      setError(typeof e === "string" ? e : "Failed to transcribe recording");
     }
   };
 
@@ -207,12 +300,40 @@ export function RecordingsList({
                     </p>
                   </div>
 
+                  {appMode !== "cloud" && (
+                    <Tooltip
+                      title={
+                        transcribingId === rec.id ? "Transcribing…" : "Transcribe"
+                      }
+                    >
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleTranscribe(rec)}
+                          disabled={
+                            merging || recordingActive || transcribingId !== null
+                          }
+                          className="!text-slate-400 hover:!text-primary-600"
+                        >
+                          {transcribingId === rec.id ? (
+                            <AutorenewIcon
+                              fontSize="small"
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <SubtitlesOutlinedIcon fontSize="small" />
+                          )}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+
                   <Tooltip title="Delete">
                     <span>
                       <IconButton
                         size="small"
                         onClick={() => handleDelete(rec)}
-                        disabled={merging || recordingActive}
+                        disabled={merging || recordingActive || transcribingId !== null}
                         className="!text-slate-400 hover:!text-red-500"
                       >
                         <DeleteOutlineRoundedIcon fontSize="small" />

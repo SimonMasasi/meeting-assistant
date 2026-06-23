@@ -5,12 +5,18 @@
 //! around it: making sure the ONNX models are downloaded, reading back a saved
 //! transcript, and renaming the anonymous "Speaker N" clusters.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
+use tauri::{Emitter, State};
 
+use crate::commands::microphone::RecordingState;
 use crate::db::pool;
-use crate::diarize::models;
-use crate::diarize::pipeline::TranscriptSegment;
+use crate::diarize::models::{self, ModelPaths};
+use crate::diarize::pipeline::{self, TranscriptSegment};
 use crate::error::{Error, Result};
 use crate::settings::{TRANSCRIPTION_LANGUAGE_KEY, TRANSCRIPTION_MODEL_SIZE_KEY};
 
@@ -164,5 +170,148 @@ pub async fn rename_speaker(
     .bind(&new_name)
     .execute(&pool)
     .await?;
+    Ok(())
+}
+
+/// (Re)transcribe an already-saved recording on demand. Any prior transcript for
+/// *this* recording is removed first, then the file is run through the same
+/// on-device pipeline the live recorder uses, appending fresh speaker-labeled
+/// lines for the meeting.
+///
+/// Refuses while a live capture is in progress, and requires the speech models to
+/// already be present (the frontend downloads them first). The work itself is
+/// detached onto a worker thread — like the live pipeline — and reports progress
+/// through the usual `transcript-line` / `transcription-status` events; this
+/// command returns once the prior lines are cleared and the worker is launched.
+#[tauri::command]
+pub async fn transcribe_recording(
+    app: tauri::AppHandle,
+    state: State<'_, RecordingState>,
+    recording_id: String,
+) -> Result<()> {
+    if state.is_active() {
+        return Err(Error::Message(
+            "Stop the current recording before transcribing".to_string(),
+        ));
+    }
+
+    let pool = pool(&app).await?;
+
+    // Resolve the file from the DB rather than trusting a frontend-supplied path.
+    let row = sqlx::query("SELECT meeting_id, path FROM recordings WHERE id = $1")
+        .bind(&recording_id)
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| Error::Message("Recording not found".to_string()))?;
+    let meeting_id: String = row.get("meeting_id");
+    let path: String = row.get("path");
+
+    // The models must already be downloaded; the frontend ensures this first.
+    let settings = fetch_transcription_settings(&pool).await?;
+    let models = models::resolve(&app, &settings.model_size)?;
+    if !models.all_present() {
+        return Err(Error::Transcription(
+            "Speech models are not downloaded yet".to_string(),
+        ));
+    }
+
+    // "Remove previous transcription" — scoped to just this recording's lines, so
+    // re-transcribing replaces its output without touching other recordings.
+    sqlx::query("DELETE FROM transcripts WHERE recording_id = $1")
+        .bind(&recording_id)
+        .execute(&pool)
+        .await?;
+
+    // Detach the work, mirroring the live pipeline (which also runs unjoined).
+    // Failures opening/reading the file surface via `transcription-error`, the
+    // same channel the pipeline uses for its own inference errors.
+    let language = settings.language;
+    let app_bg = app.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = transcribe_file(&app_bg, &meeting_id, &recording_id, &path, models, &language)
+        {
+            eprintln!("transcribe_recording error: {e}");
+            let _ = app_bg.emit("transcription-error", e.to_string());
+        }
+    });
+    Ok(())
+}
+
+/// Transcribe one saved WAV through the speech pipeline. The file is read at its
+/// native rate/channels and streamed to a [`pipeline::run`] worker over a channel
+/// — the same interface the live recorder feeds — so the pipeline performs the
+/// downmix, resampling, diarization, transcription, persistence, and event
+/// emission. Blocking (sherpa models + file IO); runs on its own thread.
+fn transcribe_file(
+    app: &tauri::AppHandle,
+    meeting_id: &str,
+    recording_id: &str,
+    path: &str,
+    models: ModelPaths,
+    language: &str,
+) -> Result<()> {
+    let mut reader = hound::WavReader::open(path)?;
+    let spec = reader.spec();
+    if spec.bits_per_sample != 16 || spec.sample_format != hound::SampleFormat::Int {
+        return Err(Error::Transcription(format!(
+            "{path} is not 16-bit PCM, so it can't be transcribed"
+        )));
+    }
+    let input_rate = spec.sample_rate;
+    let channels = spec.channels.max(1);
+
+    // Drives the pipeline's backlog clock: bumped by the mono-frame count at the
+    // input rate as audio is handed over (see `received_ms` in pipeline::run).
+    let captured = Arc::new(AtomicU64::new(0));
+    let (tx, rx) = mpsc::channel::<Vec<f32>>();
+
+    // The worker owns the (non-`Send`) sherpa models on its own thread, exactly as
+    // the live recorder spawns it.
+    let pipeline = {
+        let app = app.clone();
+        let meeting_id = meeting_id.to_string();
+        let recording_id = recording_id.to_string();
+        let language = language.to_string();
+        let captured = captured.clone();
+        std::thread::spawn(move || {
+            pipeline::run(
+                app,
+                meeting_id,
+                Some(recording_id),
+                input_rate,
+                channels,
+                models,
+                language,
+                rx,
+                captured,
+            );
+        })
+    };
+
+    // Stream the file into the worker in interleaved chunks so memory stays bounded
+    // and the pipeline drains concurrently. Samples are normalized to f32 [-1, 1],
+    // matching the live tee.
+    const CHUNK_FRAMES: usize = 16_384;
+    let frame = channels as usize;
+    let chunk_samples = CHUNK_FRAMES * frame;
+    let mut buf: Vec<f32> = Vec::with_capacity(chunk_samples);
+    for sample in reader.samples::<i16>() {
+        buf.push(sample? as f32 / 32768.0);
+        if buf.len() >= chunk_samples {
+            captured.fetch_add((buf.len() / frame) as u64, Ordering::Relaxed);
+            if tx.send(std::mem::take(&mut buf)).is_err() {
+                break; // worker gone; stop feeding
+            }
+            buf = Vec::with_capacity(chunk_samples);
+        }
+    }
+    if !buf.is_empty() {
+        captured.fetch_add((buf.len() / frame) as u64, Ordering::Relaxed);
+        let _ = tx.send(buf);
+    }
+
+    // Closing the channel tells the worker to flush its final utterance and exit.
+    drop(tx);
+    let _ = pipeline.join();
     Ok(())
 }
