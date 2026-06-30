@@ -89,8 +89,8 @@ export function ModeSelectMain() {
             accent="bg-gradient-to-br from-blue-400 to-indigo-600"
             bullets={[
               "Sign in to your account",
-              "Processing handled by the cloud provider",
-              "Coming soon — sign-in works, features land next",
+              "Recording, transcription & summaries on your server",
+              "Switch between Local and Cloud anytime",
             ]}
             cta="Use Cloud"
             onSelect={() => choose("cloud")}

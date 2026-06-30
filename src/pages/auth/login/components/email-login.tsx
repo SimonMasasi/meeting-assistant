@@ -1,6 +1,8 @@
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -28,7 +30,7 @@ const MODE_CONFIG: Record<Mode, {
 }> = {
   signin: {
     heading: 'Welcome back',
-    subtext: 'Sign in with your email and password',
+    subtext: 'Sign in with your username and password',
     passwordPlaceholder: 'Enter your password',
     passwordAutoComplete: 'current-password',
     submitLabel: 'Sign in',
@@ -56,6 +58,7 @@ interface EmailLoginProps {
 
 export const EmailLogin = ({ onBack }: EmailLoginProps) => {
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<Mode>('signin');
@@ -63,21 +66,30 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const setAppMode = useSetAtom(appModeAtom);
-  const { signIn } = useSession();
+  const { signIn, signUp } = useSession();
 
   const cfg = MODE_CONFIG[mode];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Mock-accept for now: any credentials create a persisted session and pass
-    // the cloud gate. Swap this for the real cloud auth call later — the session
-    // plumbing and routing stay the same.
-    setTimeout(() => {
-      signIn(email.trim() || 'user@example.com');
+    try {
+      if (mode === 'signup') {
+        await signUp({ username: username.trim(), email: email.trim(), password });
+      } else {
+        await signIn(username.trim(), password);
+      }
+      // Persisting the mode flips the route gates into cloud mode; the App-level
+      // effect mirrors it into Rust.
       setAppMode('cloud');
       navigate('/main/dashboard', { replace: true });
-    }, 1200);
+    } catch (err) {
+      const message =
+        typeof err === 'string' ? err : (err as Error)?.message ?? 'Authentication failed';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (showForgot) {
@@ -116,28 +128,53 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
       {/* Form */}
       <form onSubmit={handleSubmit} noValidate className={`space-y-4${isLoading ? ' pointer-events-none' : ''}`}>
 
-        {/* Email */}
+        {/* Username */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-neutral-700 dark:text-slate-200 mb-1.5">
-            Email address
+          <label htmlFor="username" className="block text-sm font-medium text-neutral-700 dark:text-slate-200 mb-1.5">
+            Username
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400 dark:text-slate-500">
-              <EmailOutlinedIcon className="login-icon-sm" />
+              <PersonOutlineOutlinedIcon className="login-icon-sm" />
             </span>
             <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              id="username"
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="your-username"
               required
               disabled={isLoading}
               className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 dark:border-slate-700 rounded-xl text-sm text-neutral-800 dark:text-slate-200 placeholder-neutral-400 dark:placeholder-slate-500 bg-neutral-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition disabled:opacity-50"
             />
           </div>
         </div>
+
+        {/* Email — only needed when creating an account. */}
+        {mode === 'signup' && (
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-700 dark:text-slate-200 mb-1.5">
+              Email address
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-neutral-400 dark:text-slate-500">
+                <EmailOutlinedIcon className="login-icon-sm" />
+              </span>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                disabled={isLoading}
+                className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 dark:border-slate-700 rounded-xl text-sm text-neutral-800 dark:text-slate-200 placeholder-neutral-400 dark:placeholder-slate-500 bg-neutral-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition disabled:opacity-50"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Password */}
         <div>
@@ -203,11 +240,6 @@ export const EmailLogin = ({ onBack }: EmailLoginProps) => {
           )}
         </button>
       </form>
-
-      {/* Demo notice — real cloud auth lands with the cloud backend. */}
-      <p className="text-[11px] text-neutral-400 dark:text-slate-500 text-center mt-4">
-        Demo sign-in — cloud backend coming soon. Any email works for now.
-      </p>
 
       {/* Toggle mode */}
       <p className="text-xs text-neutral-500 dark:text-slate-400 text-center mt-6">

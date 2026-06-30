@@ -182,6 +182,23 @@ export function RecordingsList({
     )
       return;
     setError(null);
+
+    // Cloud mode: the WAV is uploaded and transcribed on the server. The call is
+    // synchronous (no live events), so we refresh the transcript once it resolves.
+    if (appMode === "cloud") {
+      setTranscribingId(rec.id);
+      try {
+        await transcribeRecording(rec.id);
+        onTranscriptChangedRef.current?.();
+        toast.success("Transcribed.");
+      } catch (e) {
+        setError(typeof e === "string" ? e : "Failed to transcribe recording");
+      } finally {
+        setTranscribingId(null);
+      }
+      return;
+    }
+
     try {
       // First use downloads the speech models, which can take a minute.
       if (!(await transcriptionModelsReady())) {
@@ -300,33 +317,31 @@ export function RecordingsList({
                     </p>
                   </div>
 
-                  {appMode !== "cloud" && (
-                    <Tooltip
-                      title={
-                        transcribingId === rec.id ? "Transcribing…" : "Transcribe"
-                      }
-                    >
-                      <span>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleTranscribe(rec)}
-                          disabled={
-                            merging || recordingActive || transcribingId !== null
-                          }
-                          className="!text-slate-400 hover:!text-primary-600"
-                        >
-                          {transcribingId === rec.id ? (
-                            <AutorenewIcon
-                              fontSize="small"
-                              className="animate-spin"
-                            />
-                          ) : (
-                            <SubtitlesOutlinedIcon fontSize="small" />
-                          )}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  )}
+                  <Tooltip
+                    title={
+                      transcribingId === rec.id ? "Transcribing…" : "Transcribe"
+                    }
+                  >
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleTranscribe(rec)}
+                        disabled={
+                          merging || recordingActive || transcribingId !== null
+                        }
+                        className="!text-slate-400 hover:!text-primary-600"
+                      >
+                        {transcribingId === rec.id ? (
+                          <AutorenewIcon
+                            fontSize="small"
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <SubtitlesOutlinedIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
 
                   <Tooltip title="Delete">
                     <span>

@@ -3,6 +3,7 @@
 //! `main.rs` is a thin shim that calls [`run`]. Keeping the builder here (rather
 //! than in `main.rs`) lets the same logic drive both desktop and mobile targets.
 
+mod cloud;
 mod commands;
 mod db;
 mod diarize;
@@ -53,6 +54,14 @@ pub fn run() {
             commands::summary::get_meeting_summary,
             commands::summary::generate_meeting_summary,
             commands::dashboard::get_dashboard_stats,
+            cloud::auth::cloud_sign_in,
+            cloud::auth::cloud_sign_up,
+            cloud::auth::cloud_sign_out,
+            cloud::auth::cloud_me,
+            cloud::auth::cloud_health,
+            cloud::config::set_app_mode,
+            cloud::config::get_cloud_base_url,
+            cloud::config::set_cloud_base_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

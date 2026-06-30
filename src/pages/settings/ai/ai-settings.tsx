@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import toast from "react-hot-toast";
 import {
   Autocomplete,
@@ -17,6 +17,7 @@ import {
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import { loadingAtom } from "@/atoms/shared-atoms";
+import { appModeAtom } from "@/atoms/app-mode-atoms";
 import {
   AI_DEFAULTS,
   AiSettings as AiSettingsModel,
@@ -221,6 +222,7 @@ function ModelAutocomplete({
 export function AiSettings() {
   const [settings, setSettings] = useState<AiSettingsModel | null>(null);
   const [_, setLoading] = useAtom(loadingAtom);
+  const appMode = useAtomValue(appModeAtom);
 
   async function refresh() {
     try {
@@ -269,6 +271,26 @@ export function AiSettings() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (appMode === "cloud") {
+    return (
+      <div className="p-2">
+        <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200">AI Models</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Transcription and summarization run on your cloud server in Cloud mode.
+        </p>
+        <div className="mt-4 flex items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
+            <AutoAwesomeOutlinedIcon sx={{ color: "#3b82f6" }} />
+          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Inference is handled by the server (configured by your administrator).
+            Switch to Local mode to choose on-device providers and models.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

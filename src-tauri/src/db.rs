@@ -58,6 +58,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0006_create_meetings_table.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "create_cloud_session_table",
+            sql: include_str!("../migrations/0007_create_cloud_session_table.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

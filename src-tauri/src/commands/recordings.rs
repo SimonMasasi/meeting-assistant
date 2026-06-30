@@ -39,6 +39,8 @@ pub async fn list_meeting_recordings(
     app: tauri::AppHandle,
     meeting_id: String,
 ) -> Result<Vec<SavedRecording>> {
+    // Recordings are on-device captures in both modes; in cloud mode the audio is
+    // uploaded for transcription but the WAV itself stays local.
     let pool = pool(&app).await?;
     let rows = sqlx::query("SELECT id, file_name, path, size FROM recordings WHERE meeting_id = $1")
         .bind(&meeting_id)

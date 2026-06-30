@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
 use tauri::{Emitter, State};
 
+use crate::cloud::{self, AppMode};
 use crate::commands::microphone::RecordingState;
 use crate::db::pool;
 use crate::diarize::models::{self, ModelPaths};
@@ -129,6 +130,9 @@ pub async fn get_transcript(
     app: tauri::AppHandle,
     meeting_id: String,
 ) -> Result<Vec<TranscriptSegment>> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::transcription::get_transcript(&app, &meeting_id).await;
+    }
     let pool = pool(&app).await?;
     let rows = sqlx::query_as::<_, TranscriptSegment>(
         "SELECT id, speaker_label, speaker_name, start_ms, end_ms, text
@@ -205,6 +209,13 @@ pub async fn transcribe_recording(
         .ok_or_else(|| Error::Message("Recording not found".to_string()))?;
     let meeting_id: String = row.get("meeting_id");
     let path: String = row.get("path");
+
+    // Cloud mode: upload the locally-captured WAV and transcribe server-side. The
+    // transcript is then read back via `get_transcript`. Blocks until the backend
+    // finishes (synchronous), so the frontend can refetch on completion.
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::transcription::transcribe(&app, &meeting_id, &path).await;
+    }
 
     // The models must already be downloaded; the frontend ensures this first.
     let settings = fetch_transcription_settings(&pool).await?;

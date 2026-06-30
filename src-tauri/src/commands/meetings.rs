@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use tauri::State;
 
+use crate::cloud::{self, AppMode};
 use crate::commands::microphone::RecordingState;
 use crate::commands::storage::resolve_storage_dir;
 use crate::db::pool;
@@ -21,7 +22,7 @@ use crate::error::{Error, Result};
 /// A persisted meeting. Mirrors the scalar fields the list, detail header and
 /// dashboard read. Transcript, summary, key points and action items are owned by
 /// their own tables and fetched separately, so they are intentionally absent.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Meeting {
     pub id: String,
@@ -79,6 +80,9 @@ const SELECT_COLUMNS: &str = "id, title, host, date, time, views, attendees, sta
 /// Every meeting, newest first.
 #[tauri::command]
 pub async fn list_meetings(app: tauri::AppHandle) -> Result<Vec<Meeting>> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::meetings::list(&app).await;
+    }
     let pool = pool(&app).await?;
     let rows = sqlx::query(&format!(
         "SELECT {SELECT_COLUMNS} FROM meetings ORDER BY created_at DESC, id DESC"
@@ -91,6 +95,9 @@ pub async fn list_meetings(app: tauri::AppHandle) -> Result<Vec<Meeting>> {
 /// A single meeting, or `None` if no row has that id (e.g. a stale deep link).
 #[tauri::command]
 pub async fn get_meeting(app: tauri::AppHandle, meeting_id: String) -> Result<Option<Meeting>> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::meetings::get(&app, &meeting_id).await;
+    }
     let pool = pool(&app).await?;
     let row = sqlx::query(&format!(
         "SELECT {SELECT_COLUMNS} FROM meetings WHERE id = $1"
@@ -105,12 +112,18 @@ pub async fn get_meeting(app: tauri::AppHandle, meeting_id: String) -> Result<Op
 /// update since both upsert by `id`.
 #[tauri::command]
 pub async fn create_meeting(app: tauri::AppHandle, meeting: Meeting) -> Result<Meeting> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::meetings::create(&app, &meeting).await;
+    }
     upsert_meeting(&app, meeting).await
 }
 
 /// Update an existing meeting (same upsert as [`create_meeting`]).
 #[tauri::command]
 pub async fn update_meeting(app: tauri::AppHandle, meeting: Meeting) -> Result<Meeting> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::meetings::update(&app, &meeting).await;
+    }
     upsert_meeting(&app, meeting).await
 }
 
@@ -175,6 +188,10 @@ pub async fn delete_meeting(
     state: State<'_, RecordingState>,
     meeting_id: String,
 ) -> Result<()> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        // Cloud meetings have no local files/capture tied to them.
+        return cloud::meetings::delete(&app, &meeting_id).await;
+    }
     if state.is_active() {
         return Err(Error::Message(
             "Stop the current recording before deleting".to_string(),

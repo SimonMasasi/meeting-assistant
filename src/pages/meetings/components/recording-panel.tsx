@@ -29,7 +29,6 @@ import {
 import { useAtomValue } from "jotai";
 import { Meeting } from "@/services/meetings";
 import { appModeAtom } from "@/atoms/app-mode-atoms";
-import { CloudComingSoon } from "@/components/cloud/cloud-coming-soon";
 import {
   getTranscriptionSettings,
   MODEL_SIZE_OPTIONS,
@@ -292,20 +291,6 @@ export function RecordingPanel({
     }
   };
 
-  // In cloud mode, recording/transcription would go to the cloud provider —
-  // not implemented yet, so show the seam placeholder instead of the recorder.
-  if (appMode === "cloud") {
-    return (
-      <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5">
-        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-4">
-          <MicNoneOutlinedIcon sx={{ fontSize: 18 }} className="text-slate-500 dark:text-slate-400" />
-          <h2 className="text-base font-bold">Live Recording</h2>
-        </div>
-        <CloudComingSoon feature="Recording & transcription" />
-      </div>
-    );
-  }
-
   return (
     <div className="intro-y bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-5 transition-shadow duration-300 hover:shadow-xl">
       <div className="flex items-center justify-between">
@@ -441,8 +426,17 @@ export function RecordingPanel({
         </div>
       )}
 
-      {/* Live transcription + speaker detection — runs fully on-device. */}
-      {!blocked && (
+      {/* Cloud mode transcribes server-side from a saved recording (batch), so the
+          on-device live-transcription toggle below doesn't apply. */}
+      {!blocked && appMode === "cloud" && (
+        <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+          Transcription runs on your cloud server. Stop the recording, then use the
+          Transcribe button on the saved recording below.
+        </p>
+      )}
+
+      {/* Live transcription + speaker detection — runs fully on-device (local mode). */}
+      {!blocked && appMode !== "cloud" && (
         <div className="mt-4">
           <button
             type="button"

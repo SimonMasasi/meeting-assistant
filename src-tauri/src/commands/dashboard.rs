@@ -8,6 +8,7 @@
 use serde::Serialize;
 use sqlx::Row;
 
+use crate::cloud::{self, AppMode};
 use crate::commands::recordings::wav_duration_secs;
 use crate::commands::summary::ActionItem;
 use crate::db::pool;
@@ -61,6 +62,9 @@ pub struct DashboardStats {
 /// Compute the dashboard statistics from the local database.
 #[tauri::command]
 pub async fn get_dashboard_stats(app: tauri::AppHandle) -> Result<DashboardStats> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::meetings::dashboard(&app).await;
+    }
     let pool = pool(&app).await?;
 
     let total_meetings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM meetings")

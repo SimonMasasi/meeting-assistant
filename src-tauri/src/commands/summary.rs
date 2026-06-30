@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::Row;
 
+use crate::cloud::{self, AppMode};
 use crate::commands::ai::fetch_ai_settings;
 use crate::db::pool;
 use crate::error::{Error, Result};
@@ -56,6 +57,9 @@ pub async fn get_meeting_summary(
     app: tauri::AppHandle,
     meeting_id: String,
 ) -> Result<Option<MeetingSummary>> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::summary::get(&app, &meeting_id).await;
+    }
     let pool = pool(&app).await?;
     let row = sqlx::query(
         "SELECT summary, key_points, action_items, model, generated_at
@@ -91,6 +95,9 @@ pub async fn generate_meeting_summary(
     app: tauri::AppHandle,
     meeting_id: String,
 ) -> Result<MeetingSummary> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::summary::generate(&app, &meeting_id).await;
+    }
     let pool = pool(&app).await?;
     let settings = fetch_ai_settings(&pool).await?;
 

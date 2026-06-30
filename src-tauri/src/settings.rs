@@ -9,6 +9,14 @@ use serde::{Deserialize, Serialize};
 /// `settings.key` under which the chosen attachment storage folder is stored.
 pub const STORAGE_DIR_KEY: &str = "storage_dir";
 
+/// `settings.key` for the active app mode ("local" | "cloud"). Mirrors the
+/// frontend `appModeAtom` so Rust commands can route local-vs-cloud. Absent or
+/// any non-"cloud" value is treated as local.
+pub const APP_MODE_KEY: &str = "app_mode";
+/// `settings.key` for the cloud backend base URL used in cloud mode. Blank/unset
+/// falls back to [`crate::cloud::DEFAULT_BASE_URL`].
+pub const CLOUD_BASE_URL_KEY: &str = "cloud_base_url";
+
 /// `settings.key` for the on-device Whisper model size ("tiny" | "base" | "small").
 pub const TRANSCRIPTION_MODEL_SIZE_KEY: &str = "transcription_model_size";
 /// `settings.key` for the transcription language code (e.g. "en", "es", "fr").
