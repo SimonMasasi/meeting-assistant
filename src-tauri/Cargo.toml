@@ -32,7 +32,7 @@ hound = "3.5"
 # On-device speech pipeline: Silero VAD + speaker embeddings + Whisper ASR, all
 # offline via ONNX. `download-binaries` (a default feature) fetches the prebuilt
 # sherpa-onnx runtime at build time, so no system install is required.
-sherpa-rs = "0.6"
+sherpa-rs = { version = "0.6", features = ["download-binaries"] }
 # Resamples the device-rate microphone capture down to the 16 kHz mono the models
 # require.
 rubato = "0.15"
