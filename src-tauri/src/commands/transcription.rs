@@ -15,6 +15,7 @@ use tauri::{Emitter, State};
 
 use crate::cloud::{self, AppMode};
 use crate::commands::microphone::RecordingState;
+use crate::commands::recordings::{parse_stamp, wav_duration_secs};
 use crate::db::pool;
 use crate::diarize::models::{self, ModelPaths};
 use crate::diarize::pipeline::{self, TranscriptSegment};
@@ -155,6 +156,12 @@ pub async fn rename_speaker(
     speaker_label: String,
     new_name: String,
 ) -> Result<()> {
+    // Cloud transcripts come from the backend, which has no rename endpoint, so the
+    // mapping is persisted in the meeting's `clientMeta` and applied on read-back.
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::transcription::rename_speaker(&app, &meeting_id, &speaker_label, &new_name)
+            .await;
+    }
     let pool = pool(&app).await?;
     sqlx::query(
         "UPDATE transcripts SET speaker_name = $1 WHERE meeting_id = $2 AND speaker_label = $3",
@@ -175,6 +182,45 @@ pub async fn rename_speaker(
     .execute(&pool)
     .await?;
     Ok(())
+}
+
+/// Ensure a cloud `MeetingRecording` exists for a just-transcribed file and return
+/// its id. Best-effort: any backend error yields `None` (the transcript is already
+/// saved, so recording bookkeeping must not fail the transcribe command). Adopts a
+/// row transcription may have created for this file; otherwise registers one with
+/// the capture's start/end times (epoch-seconds from the filename stamp + length).
+async fn register_cloud_recording(
+    app: &tauri::AppHandle,
+    meeting_id: &str,
+    file_id: &str,
+    file_name: &str,
+    path: &str,
+) -> Option<String> {
+    if let Ok(recs) = cloud::transcription::list_recordings(app, meeting_id).await {
+        if let Some(r) = recs
+            .into_iter()
+            .find(|r| r.file.as_ref().map(|f| f.id.as_str()) == Some(file_id))
+        {
+            return Some(r.id);
+        }
+    }
+    let start = parse_stamp(file_name).unwrap_or(0);
+    let dur = wav_duration_secs(path).unwrap_or(0.0).round() as u64;
+    match cloud::transcription::add_recording(
+        app,
+        meeting_id,
+        file_id,
+        &start.to_string(),
+        &(start + dur).to_string(),
+    )
+    .await
+    {
+        Ok(id) => Some(id),
+        Err(e) => {
+            eprintln!("cloud recording registration failed (transcript still saved): {e}");
+            None
+        }
+    }
 }
 
 /// (Re)transcribe an already-saved recording on demand. Any prior transcript for
@@ -202,19 +248,60 @@ pub async fn transcribe_recording(
     let pool = pool(&app).await?;
 
     // Resolve the file from the DB rather than trusting a frontend-supplied path.
-    let row = sqlx::query("SELECT meeting_id, path FROM recordings WHERE id = $1")
-        .bind(&recording_id)
-        .fetch_optional(&pool)
-        .await?
-        .ok_or_else(|| Error::Message("Recording not found".to_string()))?;
+    let row = sqlx::query(
+        "SELECT meeting_id, file_name, path, cloud_file_id, cloud_recording_id
+         FROM recordings WHERE id = $1",
+    )
+    .bind(&recording_id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| Error::Message("Recording not found".to_string()))?;
     let meeting_id: String = row.get("meeting_id");
     let path: String = row.get("path");
 
-    // Cloud mode: upload the locally-captured WAV and transcribe server-side. The
-    // transcript is then read back via `get_transcript`. Blocks until the backend
-    // finishes (synchronous), so the frontend can refetch on completion.
+    // Cloud mode: upload the locally-captured WAV, transcribe server-side, then
+    // make sure the recording is registered exactly once. The transcript is read
+    // back via `get_transcript`. Blocks until the backend finishes (synchronous),
+    // so the frontend can refetch on completion. The upload/recording ids are
+    // cached on the row so a re-transcribe reuses them instead of duplicating.
     if cloud::current_mode(&app).await? == AppMode::Cloud {
-        return cloud::transcription::transcribe(&app, &meeting_id, &path).await;
+        let file_name: String = row.get("file_name");
+        let existing_file_id: Option<String> = row.get("cloud_file_id");
+        let existing_recording_id: Option<String> = row.get("cloud_recording_id");
+
+        // Upload once; reuse the backend file id on re-transcribe.
+        let file_id = match existing_file_id.filter(|s| !s.is_empty()) {
+            Some(id) => id,
+            None => cloud::transcription::upload(&app, &path).await?,
+        };
+
+        // Transcribe first. Some backends create the MeetingRecording row as part of
+        // transcription; others don't. We reconcile afterwards so exactly one row
+        // exists either way (never a duplicate).
+        cloud::transcription::transcribe(&app, &meeting_id, &file_id).await?;
+
+        // Register the recording once (best-effort — the transcript is already
+        // saved, so bookkeeping must not fail the command).
+        let cloud_recording_id = match existing_recording_id.filter(|s| !s.is_empty()) {
+            Some(id) => Some(id),
+            None => register_cloud_recording(&app, &meeting_id, &file_id, &file_name, &path).await,
+        };
+
+        // Cache the ids so a re-transcribe skips the re-upload/re-register. The
+        // recording id is only overwritten when we actually have one (COALESCE).
+        sqlx::query(
+            "UPDATE recordings
+             SET cloud_file_id = $1,
+                 cloud_recording_id = COALESCE($2, cloud_recording_id)
+             WHERE id = $3",
+        )
+        .bind(&file_id)
+        .bind(&cloud_recording_id)
+        .bind(&recording_id)
+        .execute(&pool)
+        .await?;
+
+        return Ok(());
     }
 
     // The models must already be downloaded; the frontend ensures this first.

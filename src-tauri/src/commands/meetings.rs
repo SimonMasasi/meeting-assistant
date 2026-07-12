@@ -51,6 +51,13 @@ pub struct Meeting {
     pub objective: String,
     #[serde(default)]
     pub created_at: i64,
+    /// Cloud-mode only: user-assigned speaker display names, keyed by the
+    /// transcript's raw `speaker_label` (e.g. "Speaker 1"). Round-trips through
+    /// the backend `clientMeta` blob since the backend has no rename endpoint, and
+    /// is applied over cloud transcripts in `cloud::transcription::get_transcript`.
+    /// Empty/absent for local meetings (which persist renames in SQLite instead).
+    #[serde(default)]
+    pub speaker_names: std::collections::HashMap<String, String>,
 }
 
 /// Map a `meetings` row to a [`Meeting`], decoding the JSON `tags` column.
@@ -71,6 +78,9 @@ fn row_to_meeting(r: &sqlx::sqlite::SqliteRow) -> Meeting {
         tags,
         objective: r.get("objective"),
         created_at: r.get("created_at"),
+        // Local meetings persist speaker renames in the `transcripts` /
+        // `meeting_speakers` tables, not here — this map is cloud-only.
+        speaker_names: Default::default(),
     }
 }
 

@@ -253,8 +253,9 @@ pub async fn merge_recordings(
 // --- internals -------------------------------------------------------------
 
 /// Parse the `<unix_secs>` out of a `recording-<ts>.wav` (or `-merged`) name, for
-/// chronological ordering. Returns `None` for unexpected names.
-fn parse_stamp(file_name: &str) -> Option<u64> {
+/// chronological ordering (and, in cloud mode, as the recording's start time).
+/// Returns `None` for unexpected names.
+pub(crate) fn parse_stamp(file_name: &str) -> Option<u64> {
     let rest = file_name.strip_prefix("recording-")?;
     let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
     digits.parse::<u64>().ok()
