@@ -201,7 +201,7 @@ export function RecordingsList({
 
     try {
       // First use downloads the speech models, which can take a minute.
-      if (!(await transcriptionModelsReady())) {
+      if (!(await transcriptionModelsReady()).ready) {
         const toastId = toast.loading("Downloading speech models…");
         try {
           await ensureTranscriptionModels();

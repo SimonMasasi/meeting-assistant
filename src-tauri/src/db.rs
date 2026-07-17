@@ -70,6 +70,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0008_add_cloud_recording_tracking.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "add_transcript_provisional",
+            sql: include_str!("../migrations/0009_add_transcript_provisional.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

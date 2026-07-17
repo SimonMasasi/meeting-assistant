@@ -18,9 +18,11 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde::Serialize;
 use tauri::{Emitter, State};
 
+use crate::cloud::{self, AppMode};
 use crate::commands::storage::resolve_storage_dir;
 use crate::db::pool;
 use crate::diarize::audio::{downmix, Resampler16k, TARGET_RATE};
+use crate::diarize::transcriber::TranscribeBackend;
 use crate::error::{Error, Result};
 
 /// The WAV writer shared between the recorder thread and cpal's audio callback.
@@ -149,6 +151,13 @@ pub async fn start_recording(
         crate::commands::transcription::fetch_transcription_settings(&pool).await?
     };
 
+    // Cloud mode transcribes each utterance on the backend, so it loads no Whisper
+    // model. Read here (async) for the same reason as the settings above.
+    let backend = match cloud::current_mode(&app).await? {
+        AppMode::Cloud => TranscribeBackend::Cloud,
+        AppMode::Local => TranscribeBackend::Local,
+    };
+
     // Seconds-since-epoch keeps successive recordings for a meeting distinct.
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -186,6 +195,7 @@ pub async fn start_recording(
                 transcribe,
                 model_size,
                 language,
+                backend,
                 stop,
                 ready_tx,
             )
@@ -371,6 +381,7 @@ fn capture(
     transcribe: bool,
     model_size: String,
     language: String,
+    backend: TranscribeBackend,
     stop: Arc<AtomicBool>,
     ready: mpsc::Sender<std::result::Result<(), String>>,
 ) -> Result<()> {
@@ -470,9 +481,14 @@ fn capture(
     let mut mixer: Option<JoinHandle<()>> = None;
     let mut pipeline: Option<JoinHandle<()>> = None;
     if transcribe {
+        // Cloud mode only needs the VAD + speaker-embedding models on disk; the
+        // Whisper bundle it would never load isn't a precondition.
         match crate::diarize::models::resolve(&app, &model_size)
             .ok()
-            .filter(|m| m.all_present())
+            .filter(|m| match backend {
+                TranscribeBackend::Cloud => m.diarize_present(),
+                TranscribeBackend::Local => m.all_present(),
+            })
         {
             Some(models) => {
                 let (chunk_tx, chunk_rx) = mpsc::channel::<SourceChunk>();
@@ -507,6 +523,7 @@ fn capture(
                         1,
                         models,
                         language,
+                        backend,
                         mixed_rx,
                         captured,
                     );

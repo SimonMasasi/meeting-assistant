@@ -19,6 +19,7 @@ use crate::commands::recordings::{parse_stamp, wav_duration_secs};
 use crate::db::pool;
 use crate::diarize::models::{self, ModelPaths};
 use crate::diarize::pipeline::{self, TranscriptSegment};
+use crate::diarize::transcriber::TranscribeBackend;
 use crate::error::{Error, Result};
 use crate::settings::{TRANSCRIPTION_LANGUAGE_KEY, TRANSCRIPTION_MODEL_SIZE_KEY};
 
@@ -99,28 +100,59 @@ pub async fn set_transcription_settings(
     Ok(())
 }
 
-/// Whether all transcription models for the chosen size are already downloaded,
-/// so the UI can decide between offering "enable" directly or prompting a
-/// first-run download.
-#[tauri::command]
-pub async fn transcription_models_ready(app: tauri::AppHandle) -> Result<bool> {
-    let pool = pool(&app).await?;
-    let settings = fetch_transcription_settings(&pool).await?;
-    Ok(models::resolve(&app, &settings.model_size)?.all_present())
+/// Which speech models are on disk. `ready` is the mode-aware answer to "can
+/// transcription start without a download?" — cloud mode needs only the VAD +
+/// speaker-embedding models, since the backend does the speech-to-text. The
+/// individual flags let the UI say *what* a first run would download.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelsReady {
+    pub diarize: bool,
+    pub whisper: bool,
+    pub ready: bool,
 }
 
-/// Download any missing models for the chosen size, emitting
+/// Whether the transcription models for the chosen size are already downloaded, so
+/// the UI can decide between offering "enable" directly or prompting a first-run
+/// download.
+#[tauri::command]
+pub async fn transcription_models_ready(app: tauri::AppHandle) -> Result<ModelsReady> {
+    let pool = pool(&app).await?;
+    let settings = fetch_transcription_settings(&pool).await?;
+    let paths = models::resolve(&app, &settings.model_size)?;
+    let (diarize, whisper) = (paths.diarize_present(), paths.whisper_present());
+    let ready = match cloud::current_mode(&app).await? {
+        AppMode::Cloud => diarize,
+        AppMode::Local => diarize && whisper,
+    };
+    Ok(ModelsReady {
+        diarize,
+        whisper,
+        ready,
+    })
+}
+
+/// Download any missing models the current mode needs, emitting
 /// `transcription-progress` events. Runs on the blocking pool since it does
 /// network + disk I/O. Idempotent.
 #[tauri::command]
 pub async fn ensure_transcription_models(app: tauri::AppHandle) -> Result<()> {
     let pool = pool(&app).await?;
     let size = fetch_transcription_settings(&pool).await?.model_size;
+    // Cloud mode transcribes on the backend, so it skips the (much larger) Whisper
+    // bundle and fetches only the on-device VAD + speaker-embedding models.
+    let cloud_mode = cloud::current_mode(&app).await? == AppMode::Cloud;
     let handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || models::ensure(&handle, &size))
-        .await
-        .map_err(|e| Error::Transcription(format!("model download task failed: {e}")))?
-        .map(|_| ())
+    tauri::async_runtime::spawn_blocking(move || {
+        if cloud_mode {
+            models::ensure_diarize(&handle)
+        } else {
+            models::ensure(&handle, &size)
+        }
+    })
+    .await
+    .map_err(|e| Error::Transcription(format!("model download task failed: {e}")))?
+    .map(|_| ())
 }
 
 /// Load the persisted, speaker-labeled transcript for a meeting, ordered as
@@ -280,6 +312,14 @@ pub async fn transcribe_recording(
         // exists either way (never a duplicate).
         cloud::transcription::transcribe(&app, &meeting_id, &file_id).await?;
 
+        // The backend transcript is now authoritative for this recording, so drop
+        // the provisional lines live transcription wrote locally. Only after a
+        // successful transcribe: on failure they're the only transcript there is.
+        sqlx::query("DELETE FROM transcripts WHERE recording_id = $1 AND provisional = 1")
+            .bind(&recording_id)
+            .execute(&pool)
+            .await?;
+
         // Register the recording once (best-effort — the transcript is already
         // saved, so bookkeeping must not fail the command).
         let cloud_recording_id = match existing_recording_id.filter(|s| !s.is_empty()) {
@@ -380,6 +420,9 @@ fn transcribe_file(
                 channels,
                 models,
                 language,
+                // Only reached in local mode — the cloud branch of
+                // `transcribe_recording` returns before this path.
+                TranscribeBackend::Local,
                 rx,
                 captured,
             );

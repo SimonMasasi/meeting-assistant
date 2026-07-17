@@ -32,15 +32,26 @@ export interface TranscriptionStatus {
   backlogMs: number;
 }
 
-/** Whether the on-device speech models are already downloaded. */
-export function transcriptionModelsReady(): Promise<boolean> {
-  return invoke<boolean>("transcription_models_ready");
+/** Which speech models are on disk. */
+export interface ModelsReady {
+  /** VAD + speaker embedding: needed in both modes, and all cloud mode needs. */
+  diarize: boolean;
+  /** The Whisper bundle: only local mode transcribes on-device. */
+  whisper: boolean;
+  /** Mode-aware: can transcription start without a download? */
+  ready: boolean;
+}
+
+/** Whether the speech models the current mode needs are already downloaded. */
+export function transcriptionModelsReady(): Promise<ModelsReady> {
+  return invoke<ModelsReady>("transcription_models_ready");
 }
 
 /**
- * Download any missing speech models (VAD, speaker embedding, Whisper). Resolves
- * once everything is present; subscribe with `onTranscriptionProgress` to show a
- * download bar. Safe to call repeatedly.
+ * Download any missing speech models the current mode needs: VAD + speaker
+ * embedding, plus Whisper in local mode (cloud mode transcribes on the backend).
+ * Resolves once everything is present; subscribe with `onTranscriptionProgress`
+ * to show a download bar. Safe to call repeatedly.
  */
 export function ensureTranscriptionModels(): Promise<void> {
   return invoke<void>("ensure_transcription_models");

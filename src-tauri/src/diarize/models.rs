@@ -57,17 +57,27 @@ pub struct ModelPaths {
 }
 
 impl ModelPaths {
-    /// Whether every required file exists on disk.
-    pub fn all_present(&self) -> bool {
+    /// Whether the VAD + speaker-embedding models exist on disk. These are the only
+    /// models cloud mode needs: it segments and clusters speakers on-device but
+    /// sends each utterance to the backend for the actual speech-to-text.
+    pub fn diarize_present(&self) -> bool {
+        [&self.vad, &self.embedding].iter().all(|p| p.exists())
+    }
+
+    /// Whether the Whisper bundle for this size exists on disk.
+    pub fn whisper_present(&self) -> bool {
         [
-            &self.vad,
-            &self.embedding,
             &self.whisper_encoder,
             &self.whisper_decoder,
             &self.whisper_tokens,
         ]
         .iter()
         .all(|p| p.exists())
+    }
+
+    /// Whether every required file exists on disk.
+    pub fn all_present(&self) -> bool {
+        self.diarize_present() && self.whisper_present()
     }
 }
 
@@ -106,6 +116,43 @@ pub fn resolve(app: &tauri::AppHandle, size: &str) -> Result<ModelPaths> {
     })
 }
 
+/// Download the VAD + speaker-embedding models if missing. Shared by both public
+/// `ensure*` entry points, which own the terminal "ready" emit — this helper must
+/// not emit it, or a local-mode download would signal completion before Whisper.
+fn fetch_diarize(app: &tauri::AppHandle, paths: &ModelPaths) -> Result<()> {
+    if !paths.vad.exists() {
+        download_to(app, VAD_URL, &paths.vad, VAD_FILE)?;
+    }
+    if !paths.embedding.exists() {
+        download_to(app, EMBEDDING_URL, &paths.embedding, EMBEDDING_FILE)?;
+    }
+    Ok(())
+}
+
+/// Ensure the VAD + speaker-embedding models are present, downloading any that are
+/// missing. These are size-independent and shared, so no Whisper size is involved.
+/// This is all cloud mode needs — it never downloads the (much larger) Whisper
+/// bundle, since transcription happens on the backend.
+pub fn ensure_diarize(app: &tauri::AppHandle) -> Result<ModelPaths> {
+    // Any size resolves the same VAD/embedding paths; the Whisper paths in the
+    // returned struct are merely *expected* locations and are not downloaded here.
+    let paths = resolve(app, WHISPER_SIZES[0])?;
+    if paths.diarize_present() {
+        return Ok(paths);
+    }
+
+    std::fs::create_dir_all(models_dir(app)?)?;
+    fetch_diarize(app, &paths)?;
+
+    if !paths.diarize_present() {
+        return Err(Error::Transcription(
+            "model download finished but some files are still missing".into(),
+        ));
+    }
+    emit(app, "ready", "models", 100);
+    Ok(paths)
+}
+
 /// Ensure all models for a given Whisper size are present, downloading any that
 /// are missing. Idempotent: returns immediately once everything is in place.
 pub fn ensure(app: &tauri::AppHandle, size: &str) -> Result<ModelPaths> {
@@ -118,16 +165,8 @@ pub fn ensure(app: &tauri::AppHandle, size: &str) -> Result<ModelPaths> {
     let dir = models_dir(app)?;
     std::fs::create_dir_all(&dir)?;
 
-    if !paths.vad.exists() {
-        download_to(app, VAD_URL, &paths.vad, VAD_FILE)?;
-    }
-    if !paths.embedding.exists() {
-        download_to(app, EMBEDDING_URL, &paths.embedding, EMBEDDING_FILE)?;
-    }
-    if !paths.whisper_encoder.exists()
-        || !paths.whisper_decoder.exists()
-        || !paths.whisper_tokens.exists()
-    {
+    fetch_diarize(app, &paths)?;
+    if !paths.whisper_present() {
         let label = format!("whisper-{size}");
         let tarball = dir.join(format!("{label}.tar.bz2"));
         download_to(app, &whisper_url(size), &tarball, &label)?;

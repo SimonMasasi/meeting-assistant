@@ -8,13 +8,16 @@
 //! ```text
 //! device-rate samples → resample to 16 kHz mono → Silero VAD (utterance bounds)
 //!   → per utterance: speaker embedding → online clustering → "Speaker N"
-//!                    Whisper ASR        → text
+//!                    ASR                → text
 //!   → persist a `transcripts` row + emit a `transcript-line` event
 //! ```
 //!
-//! All inference uses `sherpa-rs` (bindings to k2-fsa sherpa-onnx). The ONNX
-//! model files are fetched on first use by [`models`].
+//! VAD and speaker clustering always run on-device via `sherpa-rs` (bindings to
+//! k2-fsa sherpa-onnx); their ONNX model files are fetched on first use by
+//! [`models`]. Only the ASR step varies by app mode — see [`transcriber`] — so
+//! cloud mode skips the large Whisper download entirely.
 
 pub mod audio;
 pub mod models;
 pub mod pipeline;
+pub mod transcriber;

@@ -124,11 +124,6 @@ export function RecordingPanel({
         setSelectedDevice(fallback?.name ?? null);
       })
       .catch(() => {});
-    // Whether the on-device speech models are already downloaded, so the toggle
-    // knows if enabling will trigger a first-run download.
-    transcriptionModelsReady()
-      .then(setModelsReady)
-      .catch(() => setModelsReady(false));
     // Know the chosen model size so the download hint shows the right size.
     getTranscriptionSettings()
       .then((s) => setModelSize(s.modelSize))
@@ -137,6 +132,16 @@ export function RecordingPanel({
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  // Whether the speech models are already downloaded, so the toggle knows if
+  // enabling will trigger a first-run download. Re-checked when the mode changes:
+  // readiness is mode-aware (cloud needs no Whisper), so a stale value would let
+  // us ask for local transcription with no model on disk.
+  useEffect(() => {
+    transcriptionModelsReady()
+      .then((m) => setModelsReady(m.ready))
+      .catch(() => setModelsReady(false));
+  }, [appMode]);
 
   // Surface model-download progress while it runs.
   useEffect(() => {
@@ -426,17 +431,10 @@ export function RecordingPanel({
         </div>
       )}
 
-      {/* Cloud mode transcribes server-side from a saved recording (batch), so the
-          on-device live-transcription toggle below doesn't apply. */}
-      {!blocked && appMode === "cloud" && (
-        <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-          Transcription runs on your cloud server. Stop the recording, then use the
-          Transcribe button on the saved recording below.
-        </p>
-      )}
-
-      {/* Live transcription + speaker detection — runs fully on-device (local mode). */}
-      {!blocked && appMode !== "cloud" && (
+      {/* Live transcription + speaker detection. Speaker detection always runs
+          on-device; the speech-to-text is on-device in local mode and on the
+          backend in cloud mode. */}
+      {!blocked && (
         <div className="mt-4">
           <button
             type="button"
@@ -460,12 +458,15 @@ export function RecordingPanel({
                 Live transcription &amp; speaker detection
               </span>
               <span className="block text-xs text-slate-500 dark:text-slate-400">
-                Transcribe and label who's speaking, in real time and fully
-                on-device.
+                {appMode === "cloud"
+                  ? "Transcribe and label who's speaking, in real time. Speaker detection runs on-device; each phrase is sent to your cloud server to be transcribed."
+                  : "Transcribe and label who's speaking, in real time and fully on-device."}
                 {modelsReady === false && !transcribe
-                  ? ` First use downloads the ${modelSize} model (${modelSizeMb(
-                      modelSize,
-                    )}) plus shared speech models.`
+                  ? appMode === "cloud"
+                    ? " First use downloads the shared speech models."
+                    : ` First use downloads the ${modelSize} model (${modelSizeMb(
+                        modelSize,
+                      )}) plus shared speech models.`
                   : ""}
               </span>
             </span>

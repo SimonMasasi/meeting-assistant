@@ -129,9 +129,20 @@ pub async fn transcribe(app: &tauri::AppHandle, meeting_id: &str, file_id: &str)
     Ok(())
 }
 
-/// The stored cloud transcript for a meeting, mapped to the desktop segment shape.
+/// The cloud transcript for a meeting, mapped to the desktop segment shape:
+/// the backend's stored lines, followed by any provisional lines live
+/// transcription wrote locally for recordings not yet batch-transcribed.
+///
+/// The union matters because the backend transcribes one recording at a time: a
+/// meeting can have recording 1 batch-transcribed while recording 2 is still live,
+/// and an either/or switch would drop recording 2's lines the moment recording 1's
+/// backend transcript appeared. Concatenating is also the honest order — `start_ms`
+/// is relative to its own recording in both sources, so a global time sort would
+/// interleave them wrongly.
+///
 /// User-assigned speaker names (persisted in the meeting's `clientMeta`) override
-/// the backend's `speakerName` per line, keyed by `speakerLabel`.
+/// the backend's `speakerName` per line, keyed by `speakerLabel`, and apply to both
+/// sources.
 pub async fn get_transcript(
     app: &tauri::AppHandle,
     meeting_id: &str,
@@ -145,11 +156,22 @@ pub async fn get_transcript(
         .map(|m| m.speaker_names)
         .unwrap_or_default();
 
-    let data =
-        client::authed_request(app, "GET", &format!("/inference/transcript/{meeting_id}"), None)
-            .await?;
-    let dtos: Vec<SegmentDto> = serde_json::from_value(data).unwrap_or_default();
-    Ok(dtos
+    // A backend blip must not blank the panel — the provisional lines below may be
+    // the only transcript the user has right now.
+    let backend = client::authed_request(
+        app,
+        "GET",
+        &format!("/inference/transcript/{meeting_id}"),
+        None,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        eprintln!("cloud get_transcript: falling back to local lines only: {e}");
+        serde_json::Value::Null
+    });
+
+    let dtos: Vec<SegmentDto> = serde_json::from_value(backend).unwrap_or_default();
+    let mut segments: Vec<TranscriptSegment> = dtos
         .into_iter()
         .enumerate()
         .map(|(i, s)| {
@@ -166,7 +188,25 @@ pub async fn get_transcript(
                 text: s.text,
             }
         })
-        .collect())
+        .collect();
+
+    // Ids here are already `{meeting_id}-{seq}`, so they can't collide with the
+    // `seg-{i}` ids above. `speaker_name` is always NULL on these rows (cloud-mode
+    // renames only ever touch `clientMeta`), so the overrides supply it.
+    let pool = crate::db::pool(app).await?;
+    let local = sqlx::query_as::<_, TranscriptSegment>(
+        "SELECT id, speaker_label, speaker_name, start_ms, end_ms, text
+         FROM transcripts WHERE meeting_id = $1 AND provisional = 1 ORDER BY seq",
+    )
+    .bind(meeting_id)
+    .fetch_all(&pool)
+    .await?;
+    segments.extend(local.into_iter().map(|mut s| {
+        s.speaker_name = overrides.get(&s.speaker_label).cloned().or(s.speaker_name);
+        s
+    }));
+
+    Ok(segments)
 }
 
 /// Persist a speaker rename in cloud mode. The backend has no rename endpoint, so

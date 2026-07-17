@@ -14,6 +14,8 @@ use crate::cloud::{base_url, load_session, save_session};
 use crate::error::{Error, Result};
 
 // Generous: cloud transcription + LLM summarization can take well over a minute.
+// Live per-utterance transcription passes its own, much shorter timeout instead —
+// it sits on the critical path of a recording and must not stall the pipeline.
 const TIMEOUT: Duration = Duration::from_secs(180);
 
 /// A completed HTTP response: the status code and parsed JSON body. Non-2xx
@@ -35,9 +37,10 @@ fn http_call(
     url: String,
     bearer: Option<String>,
     body: Option<Value>,
+    timeout: Duration,
 ) -> Result<HttpResult> {
     let mut req = ureq::request(&method, &url)
-        .timeout(TIMEOUT)
+        .timeout(timeout)
         .set("content-type", "application/json");
     if let Some(token) = bearer.as_deref().filter(|t| !t.is_empty()) {
         req = req.set("authorization", &format!("Bearer {token}"));
@@ -81,9 +84,10 @@ async fn run_call(
     url: &str,
     bearer: Option<String>,
     body: Option<Value>,
+    timeout: Duration,
 ) -> Result<HttpResult> {
     let (method, url) = (method.to_string(), url.to_string());
-    tauri::async_runtime::spawn_blocking(move || http_call(method, url, bearer, body))
+    tauri::async_runtime::spawn_blocking(move || http_call(method, url, bearer, body, timeout))
         .await
         .map_err(|e| Error::Message(format!("cloud request task failed: {e}")))?
 }
@@ -121,7 +125,7 @@ pub async fn public_request(
     body: Option<Value>,
 ) -> Result<Value> {
     let url = join(&base_url(app).await?, path);
-    let res = run_call(method, &url, None, body).await?;
+    let res = run_call(method, &url, None, body, TIMEOUT).await?;
     unwrap_envelope(res, &url)
 }
 
@@ -138,11 +142,11 @@ pub async fn authed_request(
         .ok_or_else(|| Error::Message("Not signed in to the cloud.".into()))?;
     let url = join(&base_url(app).await?, path);
 
-    let first = run_call(method, &url, Some(session.access_token), body.clone()).await?;
+    let first = run_call(method, &url, Some(session.access_token), body.clone(), TIMEOUT).await?;
     let res = if first.status == 401 {
         // Access tokens live only ~5 min — refresh once, then retry.
         let access = refresh(app).await?;
-        run_call(method, &url, Some(access), body).await?
+        run_call(method, &url, Some(access), body, TIMEOUT).await?
     } else {
         first
     };
@@ -171,25 +175,44 @@ async fn refresh(app: &tauri::AppHandle) -> Result<String> {
     Ok(login.access_token)
 }
 
-/// Upload a file to `/uploads/upload-file` as multipart/form-data, returning the
-/// new file's id. Refreshes the access token once on 401.
-pub async fn upload_file(app: &tauri::AppHandle, filename: &str, bytes: Vec<u8>) -> Result<String> {
+/// POST a single file to `path` as multipart/form-data with the stored access
+/// token, refreshing once on 401. Returns the unwrapped `data` payload.
+pub async fn authed_multipart(
+    app: &tauri::AppHandle,
+    path: &str,
+    filename: &str,
+    bytes: Vec<u8>,
+    timeout: Duration,
+) -> Result<Value> {
     let session = load_session(app)
         .await?
         .ok_or_else(|| Error::Message("Not signed in to the cloud.".into()))?;
-    let url = join(&base_url(app).await?, "/uploads/upload-file");
+    let url = join(&base_url(app).await?, path);
     let boundary = "----meetingAssistantBoundary8f2b9c1d".to_string();
     let content_type = format!("multipart/form-data; boundary={boundary}");
     let body = multipart_body(&boundary, filename, &bytes);
 
-    let first = run_upload(&url, Some(session.access_token), &content_type, body.clone()).await?;
+    let first = run_upload(
+        &url,
+        Some(session.access_token),
+        &content_type,
+        body.clone(),
+        timeout,
+    )
+    .await?;
     let res = if first.status == 401 {
         let access = refresh(app).await?;
-        run_upload(&url, Some(access), &content_type, body).await?
+        run_upload(&url, Some(access), &content_type, body, timeout).await?
     } else {
         first
     };
-    let data = unwrap_envelope(res, &url)?;
+    unwrap_envelope(res, &url)
+}
+
+/// Upload a file to `/uploads/upload-file` as multipart/form-data, returning the
+/// new file's id. Refreshes the access token once on 401.
+pub async fn upload_file(app: &tauri::AppHandle, filename: &str, bytes: Vec<u8>) -> Result<String> {
+    let data = authed_multipart(app, "/uploads/upload-file", filename, bytes, TIMEOUT).await?;
     data.get("id")
         .and_then(Value::as_str)
         .map(String::from)
@@ -216,8 +239,9 @@ fn http_upload(
     bearer: Option<String>,
     content_type: String,
     body: Vec<u8>,
+    timeout: Duration,
 ) -> Result<HttpResult> {
-    let mut req = ureq::post(&url).timeout(TIMEOUT).set("content-type", &content_type);
+    let mut req = ureq::post(&url).timeout(timeout).set("content-type", &content_type);
     if let Some(token) = bearer.as_deref().filter(|t| !t.is_empty()) {
         req = req.set("authorization", &format!("Bearer {token}"));
     }
@@ -237,11 +261,14 @@ async fn run_upload(
     bearer: Option<String>,
     content_type: &str,
     body: Vec<u8>,
+    timeout: Duration,
 ) -> Result<HttpResult> {
     let (url, content_type) = (url.to_string(), content_type.to_string());
-    tauri::async_runtime::spawn_blocking(move || http_upload(url, bearer, content_type, body))
-        .await
-        .map_err(|e| Error::Message(format!("cloud upload task failed: {e}")))?
+    tauri::async_runtime::spawn_blocking(move || {
+        http_upload(url, bearer, content_type, body, timeout)
+    })
+    .await
+    .map_err(|e| Error::Message(format!("cloud upload task failed: {e}")))?
 }
 
 /// Best-effort reachability check of the configured backend (used by the cloud
@@ -249,7 +276,7 @@ async fn run_upload(
 /// transport failure is `false`.
 pub async fn ping(app: &tauri::AppHandle) -> Result<bool> {
     let url = join(&base_url(app).await?, "/openapi.json");
-    match run_call("GET", &url, None, None).await {
+    match run_call("GET", &url, None, None, TIMEOUT).await {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
     }

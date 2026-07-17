@@ -16,13 +16,15 @@ use sherpa_rs::{
     embedding_manager::EmbeddingManager,
     silero_vad::{SileroVad, SileroVadConfig},
     speaker_id::{EmbeddingExtractor, ExtractorConfig},
-    whisper::{WhisperConfig, WhisperRecognizer},
 };
 use tauri::Emitter;
 
 use crate::db::pool;
 use crate::diarize::audio::{downmix, Resampler16k, TARGET_RATE};
 use crate::diarize::models::ModelPaths;
+use crate::diarize::transcriber::{
+    CloudTranscriber, TranscribeBackend, Transcriber, WhisperTranscriber,
+};
 use crate::error::{Error, Result};
 
 /// Silero processes audio in fixed 512-sample windows at 16 kHz.
@@ -74,6 +76,7 @@ pub fn run(
     channels: u16,
     models: ModelPaths,
     language: String,
+    backend: TranscribeBackend,
     rx: Receiver<Vec<f32>>,
     captured: Arc<AtomicU64>,
 ) {
@@ -86,6 +89,7 @@ pub fn run(
         channels,
         models,
         &language,
+        backend,
         rx,
         &captured,
     ) {
@@ -123,19 +127,19 @@ fn run_inner(
     channels: u16,
     models: ModelPaths,
     language: &str,
+    backend: TranscribeBackend,
     rx: Receiver<Vec<f32>>,
     captured: &AtomicU64,
 ) -> Result<()> {
     let path = |p: &std::path::Path| p.to_string_lossy().to_string();
 
-    let mut recognizer = WhisperRecognizer::new(WhisperConfig {
-        encoder: path(&models.whisper_encoder),
-        decoder: path(&models.whisper_decoder),
-        tokens: path(&models.whisper_tokens),
-        language: language.into(),
-        ..Default::default()
-    })
-    .map_err(|e| Error::Transcription(format!("whisper init failed: {e}")))?;
+    let mut transcriber: Box<dyn Transcriber> = match backend {
+        TranscribeBackend::Local => Box::new(WhisperTranscriber::new(&models, language)?),
+        TranscribeBackend::Cloud => Box::new(CloudTranscriber::new(app.clone(), language)),
+    };
+    // Cloud lines are provisional: they display live, then the backend's batch
+    // transcript supersedes them once the recording is transcribed server-side.
+    let provisional = backend == TranscribeBackend::Cloud;
 
     let mut extractor = EmbeddingExtractor::new(ExtractorConfig {
         model: path(&models.embedding),
@@ -198,11 +202,21 @@ fn run_inner(
         processed_16k += drain_windows(
             &mut pending,
             &mut vad,
-            &mut recognizer,
+            &mut *transcriber,
             &mut extractor,
             &mut manager,
             &mut speaker_counter,
-            &mut |seg| persist_and_emit(app, &pool, meeting_id, &recording_id, &mut seq, seg),
+            &mut |seg| {
+                persist_and_emit(
+                    app,
+                    &pool,
+                    meeting_id,
+                    &recording_id,
+                    &mut seq,
+                    provisional,
+                    seg,
+                )
+            },
         )? as u64;
 
         // Throttle to ~2 updates/sec of processed audio so the UI stays current
@@ -225,11 +239,21 @@ fn run_inner(
     drain_windows(
         &mut pending,
         &mut vad,
-        &mut recognizer,
+        &mut *transcriber,
         &mut extractor,
         &mut manager,
         &mut speaker_counter,
-        &mut |seg| persist_and_emit(app, &pool, meeting_id, &recording_id, &mut seq, seg),
+        &mut |seg| {
+            persist_and_emit(
+                app,
+                &pool,
+                meeting_id,
+                &recording_id,
+                &mut seq,
+                provisional,
+                seg,
+            )
+        },
     )?;
 
     // Caught up: report the backlog cleared and the worker finished.
@@ -254,7 +278,7 @@ struct Utterance {
 fn drain_windows(
     pending: &mut Vec<f32>,
     vad: &mut SileroVad,
-    recognizer: &mut WhisperRecognizer,
+    transcriber: &mut dyn Transcriber,
     extractor: &mut EmbeddingExtractor,
     manager: &mut EmbeddingManager,
     speaker_counter: &mut u32,
@@ -269,13 +293,10 @@ fn drain_windows(
             let segment = vad.front();
             let start_sample = segment.start as u64;
             let n_samples = segment.samples.len();
-            let text = recognizer
-                .transcribe(TARGET_RATE, &segment.samples)
-                .text
-                .trim()
-                .to_string();
-            // Skip non-speech the VAD let through but Whisper found empty, before
-            // it can register a phantom speaker cluster.
+            let text = transcriber.transcribe(TARGET_RATE, &segment.samples)?;
+            // Skip non-speech the VAD let through but the transcriber found empty,
+            // before it can register a phantom speaker cluster. In cloud mode a
+            // dropped line arrives here as empty text too, for the same reason.
             if text.is_empty() {
                 vad.pop();
                 continue;
@@ -324,6 +345,7 @@ fn persist_and_emit(
     meeting_id: &str,
     recording_id: &Option<String>,
     seq: &mut i64,
+    provisional: bool,
     utt: Utterance,
 ) -> Result<()> {
     let start_ms = (utt.start_sample as i64) * 1000 / TARGET_RATE as i64;
@@ -340,8 +362,8 @@ fn persist_and_emit(
     tauri::async_runtime::block_on(
         sqlx::query(
             "INSERT INTO transcripts
-                (id, meeting_id, recording_id, seq, speaker_label, speaker_name, start_ms, end_ms, text)
-             VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8)",
+                (id, meeting_id, recording_id, seq, speaker_label, speaker_name, start_ms, end_ms, text, provisional)
+             VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9)",
         )
         .bind(&line.id)
         .bind(meeting_id)
@@ -351,6 +373,7 @@ fn persist_and_emit(
         .bind(line.start_ms)
         .bind(line.end_ms)
         .bind(&line.text)
+        .bind(provisional as i64)
         .execute(pool),
     )?;
     *seq += 1;
