@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import {
+  clearTranscript,
   getTranscript,
   onTranscriptLine,
   renameSpeaker,
@@ -100,6 +103,60 @@ export function TranscriptPanel({
     [draftName, meeting.id, load, cancelEdit],
   );
 
+  const [clearing, setClearing] = useState(false);
+  const runClear = useCallback(async () => {
+    setClearing(true);
+    try {
+      await clearTranscript(meeting.id);
+      setSegments([]);
+      toast.success("Transcript cleared.");
+    } catch (e) {
+      // Leave the current lines in place if the clear failed.
+      toast.error(typeof e === "string" ? e : "Failed to clear transcript.");
+    } finally {
+      setClearing(false);
+    }
+  }, [meeting.id]);
+
+  // window.confirm is unreliable in the Tauri webview, so ask for confirmation with
+  // a toast that stays until the user chooses. Only one confirm toast at a time.
+  const clearAll = useCallback(() => {
+    const id = "clear-transcript-confirm";
+    toast(
+      (t) => (
+        <div className="flex w-72 flex-col gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              Delete saved transcript?
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              This permanently removes all lines and speaker names for this
+              meeting. This can&apos;t be undone.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                runClear();
+              }}
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-white bg-danger-500 hover:bg-danger-600"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { id, duration: Infinity },
+    );
+  }, [runClear]);
+
   const hasLive = segments.length > 0;
   const labelOrder = labelOrderOf(segments);
 
@@ -108,10 +165,23 @@ export function TranscriptPanel({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Transcript</h2>
-        <button className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
-          {meeting.language}
-          <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
-        </button>
+        <div className="flex items-center gap-3">
+          {hasLive && (
+            <button
+              onClick={clearAll}
+              disabled={clearing}
+              title="Clear transcript"
+              className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-danger-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+              {clearing ? "Clearing…" : "Clear"}
+            </button>
+          )}
+          <button className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+            {meeting.language}
+            <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
+          </button>
+        </div>
       </div>
 
       {/* Status banner */}

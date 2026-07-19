@@ -58,6 +58,12 @@ pub struct Meeting {
     /// Empty/absent for local meetings (which persist renames in SQLite instead).
     #[serde(default)]
     pub speaker_names: std::collections::HashMap<String, String>,
+    /// Cloud-mode only: set when the user clears the transcript. The backend has no
+    /// transcript-delete endpoint, so its stored transcript is instead suppressed
+    /// on read-back in `cloud::transcription::get_transcript`. Reset when the
+    /// recording is re-transcribed. Unused for local meetings (which hard-delete).
+    #[serde(default)]
+    pub transcript_cleared: bool,
 }
 
 /// Map a `meetings` row to a [`Meeting`], decoding the JSON `tags` column.
@@ -81,6 +87,9 @@ fn row_to_meeting(r: &sqlx::sqlite::SqliteRow) -> Meeting {
         // Local meetings persist speaker renames in the `transcripts` /
         // `meeting_speakers` tables, not here — this map is cloud-only.
         speaker_names: Default::default(),
+        // Local meetings clear by hard-deleting rows, so this cloud-only marker is
+        // never read for them.
+        transcript_cleared: false,
     }
 }
 

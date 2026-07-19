@@ -147,28 +147,33 @@ pub async fn get_transcript(
     app: &tauri::AppHandle,
     meeting_id: &str,
 ) -> Result<Vec<TranscriptSegment>> {
-    // The rename map lives on the meeting; a missing/unknown meeting just means no
-    // overrides (the backend's own speaker names are used as-is).
-    let overrides = meetings::get(app, meeting_id)
-        .await
-        .ok()
-        .flatten()
-        .map(|m| m.speaker_names)
-        .unwrap_or_default();
+    // The rename map and the "cleared" marker both live on the meeting; a
+    // missing/unknown meeting just means no overrides and not cleared.
+    let meeting = meetings::get(app, meeting_id).await.ok().flatten();
+    let cleared = meeting.as_ref().is_some_and(|m| m.transcript_cleared);
+    let overrides = meeting.map(|m| m.speaker_names).unwrap_or_default();
 
-    // A backend blip must not blank the panel — the provisional lines below may be
-    // the only transcript the user has right now.
-    let backend = client::authed_request(
-        app,
-        "GET",
-        &format!("/inference/transcript/{meeting_id}"),
-        None,
-    )
-    .await
-    .unwrap_or_else(|e| {
-        eprintln!("cloud get_transcript: falling back to local lines only: {e}");
+    // When the user has cleared the transcript, the backend's stored copy stays
+    // hidden (there's no delete endpoint) — skip the fetch entirely. Any local
+    // provisional lines from a *new* recording still show, and re-transcribing
+    // resets the marker.
+    let backend = if cleared {
         serde_json::Value::Null
-    });
+    } else {
+        // A backend blip must not blank the panel — the provisional lines below may
+        // be the only transcript the user has right now.
+        client::authed_request(
+            app,
+            "GET",
+            &format!("/inference/transcript/{meeting_id}"),
+            None,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("cloud get_transcript: falling back to local lines only: {e}");
+            serde_json::Value::Null
+        })
+    };
 
     let dtos: Vec<SegmentDto> = serde_json::from_value(backend).unwrap_or_default();
     let mut segments: Vec<TranscriptSegment> = dtos
@@ -225,6 +230,32 @@ pub async fn rename_speaker(
         .speaker_names
         .insert(speaker_label.to_string(), new_name.to_string());
     meetings::update(app, &meeting).await?;
+    Ok(())
+}
+
+/// Clear a meeting's transcript in cloud mode. Local live/provisional lines are
+/// hard-deleted; the backend's stored transcript has no delete endpoint, so it is
+/// instead marked hidden (see `transcript_cleared` in [`get_transcript`]).
+/// Re-transcribing a recording resets the marker via [`set_cleared`].
+pub async fn clear_transcript(app: &tauri::AppHandle, meeting_id: &str) -> Result<()> {
+    let pool = crate::db::pool(app).await?;
+    sqlx::query("DELETE FROM transcripts WHERE meeting_id = $1 AND provisional = 1")
+        .bind(meeting_id)
+        .execute(&pool)
+        .await?;
+    set_cleared(app, meeting_id, true).await
+}
+
+/// Set (or reset) the meeting's `transcript_cleared` marker, skipping the backend
+/// round-trip when it's already at the desired value.
+pub async fn set_cleared(app: &tauri::AppHandle, meeting_id: &str, cleared: bool) -> Result<()> {
+    let mut meeting = meetings::get(app, meeting_id)
+        .await?
+        .ok_or_else(|| Error::Message("Meeting not found".into()))?;
+    if meeting.transcript_cleared != cleared {
+        meeting.transcript_cleared = cleared;
+        meetings::update(app, &meeting).await?;
+    }
     Ok(())
 }
 

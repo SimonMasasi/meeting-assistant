@@ -63,6 +63,16 @@ export function getTranscript(meetingId: string): Promise<TranscriptSegment[]> {
 }
 
 /**
+ * Clear a meeting's transcript. In local mode this permanently deletes its lines
+ * and remembered speaker names. In cloud mode local live lines are deleted and the
+ * server-side transcript is hidden (it has no backend delete); re-transcribing a
+ * recording brings it back.
+ */
+export function clearTranscript(meetingId: string): Promise<void> {
+  return invoke<void>("clear_transcript", { meetingId });
+}
+
+/**
  * (Re)transcribe an already-saved recording on demand. Any existing transcript
  * for that recording is removed first, then it's run through the on-device
  * pipeline; progress streams via the usual `transcript-line` /

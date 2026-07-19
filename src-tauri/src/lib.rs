@@ -49,6 +49,7 @@ pub fn run() {
             commands::transcription::get_transcription_settings,
             commands::transcription::set_transcription_settings,
             commands::transcription::get_transcript,
+            commands::transcription::clear_transcript,
             commands::transcription::rename_speaker,
             commands::transcription::transcribe_recording,
             commands::summary::get_meeting_summary,

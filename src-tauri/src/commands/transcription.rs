@@ -179,6 +179,28 @@ pub async fn get_transcript(
     Ok(rows)
 }
 
+/// Clear a meeting's transcript. In local mode this hard-deletes its lines and the
+/// remembered speaker names. In cloud mode the backend transcript has no delete
+/// endpoint, so local live lines are removed and the backend copy is hidden on
+/// read-back (see `cloud::transcription::clear_transcript`); re-transcribing a
+/// recording brings it back.
+#[tauri::command]
+pub async fn clear_transcript(app: tauri::AppHandle, meeting_id: String) -> Result<()> {
+    if cloud::current_mode(&app).await? == AppMode::Cloud {
+        return cloud::transcription::clear_transcript(&app, &meeting_id).await;
+    }
+    let pool = pool(&app).await?;
+    sqlx::query("DELETE FROM transcripts WHERE meeting_id = $1")
+        .bind(&meeting_id)
+        .execute(&pool)
+        .await?;
+    sqlx::query("DELETE FROM meeting_speakers WHERE meeting_id = $1")
+        .bind(&meeting_id)
+        .execute(&pool)
+        .await?;
+    Ok(())
+}
+
 /// Assign a display name to a speaker cluster, applied to every line of that
 /// label (and remembered for future lines via `meeting_speakers`).
 #[tauri::command]
@@ -319,6 +341,10 @@ pub async fn transcribe_recording(
             .bind(&recording_id)
             .execute(&pool)
             .await?;
+
+        // Producing a fresh transcript un-hides one the user had cleared, so the new
+        // result actually shows. Best-effort — the transcript is already saved.
+        let _ = cloud::transcription::set_cleared(&app, &meeting_id, false).await;
 
         // Register the recording once (best-effort — the transcript is already
         // saved, so bookkeeping must not fail the command).
