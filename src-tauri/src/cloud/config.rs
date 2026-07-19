@@ -24,3 +24,22 @@ pub async fn get_cloud_base_url(app: tauri::AppHandle) -> Result<String> {
 pub async fn set_cloud_base_url(app: tauri::AppHandle, url: String) -> Result<()> {
     cloud::set_base_url(&app, &url).await
 }
+
+/// The configured Google OAuth desktop client ID (or "" when unset).
+#[tauri::command]
+pub async fn get_google_client_id(app: tauri::AppHandle) -> Result<String> {
+    cloud::google_client_id(&app).await
+}
+
+/// Persist the Google OAuth desktop client ID.
+#[tauri::command]
+pub async fn set_google_client_id(app: tauri::AppHandle, id: String) -> Result<()> {
+    cloud::set_google_client_id(&app, &id).await
+}
+
+/// Persist the Google OAuth desktop client secret. There is deliberately no
+/// getter — the secret must never be handed back to the webview.
+#[tauri::command]
+pub async fn set_google_client_secret(app: tauri::AppHandle, secret: String) -> Result<()> {
+    cloud::set_google_client_secret(&app, &secret).await
+}

@@ -14,6 +14,7 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod dto;
+pub mod google;
 pub mod meetings;
 pub mod summary;
 pub mod transcription;
@@ -24,7 +25,9 @@ use sqlx::Row;
 
 use crate::db::pool;
 use crate::error::Result;
-use crate::settings::{APP_MODE_KEY, CLOUD_BASE_URL_KEY};
+use crate::settings::{
+    APP_MODE_KEY, CLOUD_BASE_URL_KEY, GOOGLE_CLIENT_ID_KEY, GOOGLE_CLIENT_SECRET_KEY,
+};
 use self::dto::LoginData;
 
 /// Base URL used when the user hasn't configured one. The backend defaults to
@@ -94,6 +97,50 @@ pub async fn base_url(app: &tauri::AppHandle) -> Result<String> {
 /// Persist the cloud base URL (trimmed; trailing slash dropped at call sites).
 pub async fn set_base_url(app: &tauri::AppHandle, url: &str) -> Result<()> {
     write_setting(app, CLOUD_BASE_URL_KEY, url.trim()).await
+}
+
+/// The Google OAuth **desktop** client ID for "Continue with Google". Resolution
+/// order: the stored `settings` value → the `GOOGLE_CLIENT_ID` environment
+/// variable (loaded from `.env` at startup) → empty. The client ID is public
+/// (safe to ship); the PKCE desktop flow uses no confidential secret.
+pub async fn google_client_id(app: &tauri::AppHandle) -> Result<String> {
+    if let Some(v) = read_setting(app, GOOGLE_CLIENT_ID_KEY)
+        .await?
+        .filter(|v| !v.trim().is_empty())
+    {
+        return Ok(v.trim().to_string());
+    }
+    Ok(std::env::var("GOOGLE_CLIENT_ID")
+        .unwrap_or_default()
+        .trim()
+        .to_string())
+}
+
+/// Persist the Google OAuth desktop client ID.
+pub async fn set_google_client_id(app: &tauri::AppHandle, id: &str) -> Result<()> {
+    write_setting(app, GOOGLE_CLIENT_ID_KEY, id.trim()).await
+}
+
+/// The Google OAuth desktop client **secret**, required by Google's token
+/// endpoint in the code exchange. Resolution: stored `settings` value → the
+/// `GOOGLE_CLIENT_SECRET` env (loaded from `.env`) → empty. May be empty for a
+/// truly public client, in which case it is simply omitted from the exchange.
+pub async fn google_client_secret(app: &tauri::AppHandle) -> Result<String> {
+    if let Some(v) = read_setting(app, GOOGLE_CLIENT_SECRET_KEY)
+        .await?
+        .filter(|v| !v.trim().is_empty())
+    {
+        return Ok(v.trim().to_string());
+    }
+    Ok(std::env::var("GOOGLE_CLIENT_SECRET")
+        .unwrap_or_default()
+        .trim()
+        .to_string())
+}
+
+/// Persist the Google OAuth desktop client secret.
+pub async fn set_google_client_secret(app: &tauri::AppHandle, secret: &str) -> Result<()> {
+    write_setting(app, GOOGLE_CLIENT_SECRET_KEY, secret.trim()).await
 }
 
 /// Load the signed-in cloud session, or `None` when signed out (no row / blank

@@ -16,6 +16,17 @@ pub const APP_MODE_KEY: &str = "app_mode";
 /// `settings.key` for the cloud backend base URL used in cloud mode. Blank/unset
 /// falls back to [`crate::cloud::DEFAULT_BASE_URL`].
 pub const CLOUD_BASE_URL_KEY: &str = "cloud_base_url";
+/// `settings.key` for the Google OAuth **desktop** client ID used by
+/// "Continue with Google". Public value (not a secret). Blank/unset falls back to
+/// the `GOOGLE_CLIENT_ID` environment variable (loaded from `.env`), then empty.
+/// See [`crate::cloud::google_client_id`].
+pub const GOOGLE_CLIENT_ID_KEY: &str = "google_client_id";
+/// `settings.key` for the Google OAuth **desktop** client secret. Google requires
+/// it in the authorization-code exchange even for installed/desktop clients (where
+/// it is not treated as truly confidential). Blank/unset falls back to the
+/// `GOOGLE_CLIENT_SECRET` environment variable (loaded from `.env`), then empty.
+/// See [`crate::cloud::google_client_secret`].
+pub const GOOGLE_CLIENT_SECRET_KEY: &str = "google_client_secret";
 
 /// `settings.key` for the on-device Whisper model size ("tiny" | "base" | "small").
 pub const TRANSCRIPTION_MODEL_SIZE_KEY: &str = "transcription_model_size";

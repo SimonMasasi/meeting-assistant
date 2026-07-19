@@ -44,6 +44,12 @@
   flex-shrink: 0;
 }
 
+/* Dark spinner for use on light-background buttons (e.g. "Continue with Google"). */
+.login-spinner--dark {
+  border-color: rgba(100, 116, 139, 0.35);
+  border-top-color: #475569;
+}
+
 @keyframes login-spin {
   to { transform: rotate(360deg); }
 }

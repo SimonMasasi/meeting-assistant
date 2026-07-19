@@ -42,6 +42,18 @@ ureq = "2"
 tar = "0.4"
 bzip2 = "0.4"
 
+# Google OAuth (desktop Authorization Code + PKCE): SHA-256 for the PKCE
+# challenge, `getrandom` for the verifier/state entropy, `open` to launch the
+# system browser for the consent screen. The loopback redirect server uses
+# `std::net`, so no HTTP-server crate is needed.
+sha2 = "0.10"
+getrandom = "0.2"
+open = "5"
+
+# Loads a `.env` file into the process environment at startup so config like the
+# Google OAuth client ID lives outside the source (see `google_client_id`).
+dotenvy = "0.15"
+
 # macOS microphone authorization (TCC) is queried via AVFoundation's
 # AVCaptureDevice, reached through these objc bindings.
 [target.'cfg(target_os = "macos")'.dependencies]

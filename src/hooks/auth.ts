@@ -41,6 +41,15 @@ export function useSession() {
     return next;
   };
 
+  const signInWithGoogle = async (): Promise<Session> => {
+    // Rust runs the full desktop OAuth flow (browser + PKCE loopback), verifies
+    // with the backend, and persists the JWTs. Only the user crosses back.
+    const user = await invoke<CloudUser>("cloud_sign_in_google");
+    const next: Session = { email: user.email || user.username, token: "cloud" };
+    setSession(next);
+    return next;
+  };
+
   const signUp = async (input: SignUpInput): Promise<Session> => {
     await invoke("cloud_sign_up", {
       username: input.username,
@@ -62,5 +71,5 @@ export function useSession() {
     setSession(null);
   };
 
-  return { session, signIn, signUp, signOut };
+  return { session, signIn, signInWithGoogle, signUp, signOut };
 }
