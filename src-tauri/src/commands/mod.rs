@@ -14,3 +14,4 @@ pub mod recordings;
 pub mod storage;
 pub mod summary;
 pub mod transcription;
+pub mod tus_upload;

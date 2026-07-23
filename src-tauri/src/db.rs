@@ -76,6 +76,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0009_add_transcript_provisional.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "create_tus_uploads_table",
+            sql: include_str!("../migrations/0010_create_tus_uploads_table.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

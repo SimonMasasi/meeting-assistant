@@ -25,6 +25,7 @@ pub fn run() {
                 .build(),
         )
         .manage(commands::microphone::RecordingState::default())
+        .manage(commands::tus_upload::UploadState::default())
         .invoke_handler(tauri::generate_handler![
             commands::greet::greet,
             commands::attachments::save_meeting_attachment,
@@ -60,6 +61,12 @@ pub fn run() {
             commands::summary::get_meeting_summary,
             commands::summary::generate_meeting_summary,
             commands::dashboard::get_dashboard_stats,
+            commands::tus_upload::start_file_upload,
+            commands::tus_upload::pause_file_upload,
+            commands::tus_upload::resume_file_upload,
+            commands::tus_upload::cancel_file_upload,
+            commands::tus_upload::list_resumable_uploads,
+            commands::tus_upload::transcribe_uploaded_file,
             cloud::auth::cloud_sign_in,
             cloud::auth::cloud_sign_up,
             cloud::auth::cloud_sign_out,

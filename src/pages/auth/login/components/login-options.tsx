@@ -108,7 +108,7 @@ export function LoginOptions({ onEmailClick }: LoginOptionsProps) {
         className={`${BASE_BTN} border border-neutral-300 bg-white dark:bg-slate-800 hover:bg-neutral-50 text-neutral-600 dark:text-slate-400`}
       >
         <AccountCircleOutlinedIcon className="login-icon-md" />
-        Continue Without Account
+        Continue in local mode
       </button>
     </>
   );

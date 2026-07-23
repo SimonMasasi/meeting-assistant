@@ -37,6 +37,13 @@ pub enum Error {
     #[error("transcription error: {0}")]
     Transcription(String),
 
+    /// Internal control signal: a resumable upload's server-side state is gone
+    /// (410/404/403), so the transfer must be re-created from zero. Caught by
+    /// [`crate::commands::tus_upload::upload_path`] and never surfaced to the
+    /// frontend — if it ever is, the message still reads sensibly.
+    #[error("the upload could not be resumed and must be started again")]
+    UploadRestartNeeded,
+
     /// Domain errors that don't originate from an underlying library error,
     /// e.g. validation failures.
     #[error("{0}")]

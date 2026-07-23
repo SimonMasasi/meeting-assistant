@@ -15,6 +15,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::cloud::{client, meetings};
+use crate::commands::tus_upload::UploadOutcome;
 use crate::diarize::pipeline::TranscriptSegment;
 use crate::error::{Error, Result};
 
@@ -63,16 +64,19 @@ pub struct RecordingDto {
     pub speaker: Option<MeetingSpeakerRef>,
 }
 
-/// Upload a local WAV to the backend and return the new file's id. Called once per
-/// recording; the id is cached locally so re-transcribes skip the re-upload.
-pub async fn upload(app: &tauri::AppHandle, file_path: &str) -> Result<String> {
-    let bytes = std::fs::read(file_path)?;
-    let filename = std::path::Path::new(file_path)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("recording.wav")
-        .to_string();
-    client::upload_file(app, &filename, bytes).await
+/// Upload a local WAV to the backend. Called once per recording; the resulting
+/// id is cached locally so re-transcribes skip the re-upload.
+///
+/// Goes over the resumable tus protocol, streaming the file 8 MB at a time from
+/// disk. A long meeting can produce a multi-gigabyte WAV, so it is never read
+/// into memory — and a transfer interrupted by a dropped connection or an app
+/// restart picks up from the server's offset instead of starting over. See
+/// [`crate::commands::tus_upload`].
+///
+/// Returns the [`UploadOutcome`] rather than just the id so the caller can tell
+/// a user-initiated cancel apart from a failure.
+pub async fn upload(app: &tauri::AppHandle, file_path: &str) -> Result<UploadOutcome> {
+    crate::commands::tus_upload::upload_for_transcribe(app, file_path).await
 }
 
 /// Register an uploaded file as a `MeetingRecording` on the backend and return the
@@ -115,15 +119,23 @@ pub async fn list_recordings(
     Ok(serde_json::from_value(data).unwrap_or_default())
 }
 
+/// How long to wait on `/inference/transcribe`. The backend transcribes and
+/// diarizes synchronously, which takes minutes for a large file — well past the
+/// default request timeout.
+const TRANSCRIBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
 /// Run cloud transcription for an already-uploaded file. The transcript is
 /// persisted server-side and then read back via [`get_transcript`].
 pub async fn transcribe(app: &tauri::AppHandle, meeting_id: &str, file_id: &str) -> Result<()> {
+    // `file_id` stays a string end to end: backend ids are 64-bit and would lose
+    // precision if they were ever round-tripped through a JS number.
     let body = json!({ "fileId": file_id });
-    client::authed_request(
+    client::authed_request_with_timeout(
         app,
         "POST",
         &format!("/inference/transcribe/{meeting_id}"),
         Some(body),
+        TRANSCRIBE_TIMEOUT,
     )
     .await?;
     Ok(())

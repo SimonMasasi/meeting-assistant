@@ -9,6 +9,7 @@
 //! - [`auth`]   — sign in / up / out / me commands.
 //! - [`config`] — app-mode and base-URL commands.
 //! - [`dto`]    — the backend's JSON shapes.
+//! - [`tus`]    — the resumable (tus 1.0.0) upload protocol for large audio.
 
 pub mod auth;
 pub mod client;
@@ -18,6 +19,7 @@ pub mod google;
 pub mod meetings;
 pub mod summary;
 pub mod transcription;
+pub mod tus;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 

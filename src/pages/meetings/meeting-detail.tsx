@@ -13,6 +13,7 @@ import { MeetingObjective } from "./components/meeting-objective";
 import { TranscriptPanel } from "./components/transcript-panel";
 import { RecordingPanel } from "./components/recording-panel";
 import { RecordingsList } from "./components/recordings-list";
+import { UploadPanel } from "./components/upload-panel";
 
 export function MeetingDetailPage() {
   const { id } = useParams();
@@ -132,6 +133,10 @@ export function MeetingDetailPage() {
           <RecordingPanel
             meeting={meeting}
             onRecordingsChanged={() => setRecordingsVersion((v) => v + 1)}
+          />
+          <UploadPanel
+            meeting={meeting}
+            onTranscriptChanged={() => setTranscriptVersion((v) => v + 1)}
           />
           <MeetingObjective meeting={meeting} />
         </div>

@@ -27,7 +27,7 @@ struct HttpResult {
 }
 
 /// Join a base URL and a path into a full URL (`/auth/me` → `…:8000/auth/me`).
-fn join(base: &str, path: &str) -> String {
+pub(crate) fn join(base: &str, path: &str) -> String {
     format!("{}/{}", base.trim_end_matches('/'), path.trim_start_matches('/'))
 }
 
@@ -95,8 +95,15 @@ async fn run_call(
 /// Validate the response envelope and return its `data`. `response.status == false`
 /// (or an HTTP error with a `detail`) becomes a readable [`Error::Message`].
 fn unwrap_envelope(res: HttpResult, url: &str) -> Result<Value> {
-    if let Ok(env) = serde_json::from_value::<Envelope>(res.body.clone()) {
-        let ok = env.response.status.unwrap_or(res.status < 400);
+    unwrap_envelope_parts(res.status, res.body, url)
+}
+
+/// [`unwrap_envelope`] over a raw (status, body) pair, for callers that read the
+/// response themselves. The tus layer needs the response *headers*, so it can't
+/// hand over an [`HttpResult`] — it shares the envelope rules through here.
+pub(crate) fn unwrap_envelope_parts(status: u16, body: Value, url: &str) -> Result<Value> {
+    if let Ok(env) = serde_json::from_value::<Envelope>(body.clone()) {
+        let ok = env.response.status.unwrap_or(status < 400);
         if !ok {
             return Err(Error::Message(env.response.message.unwrap_or_else(|| {
                 format!("Cloud request to {url} failed")
@@ -104,16 +111,15 @@ fn unwrap_envelope(res: HttpResult, url: &str) -> Result<Value> {
         }
         return Ok(env.data.unwrap_or(Value::Null));
     }
-    if res.status >= 400 {
-        let detail = res
-            .body
+    if status >= 400 {
+        let detail = body
             .get("detail")
             .and_then(Value::as_str)
             .map(String::from)
-            .unwrap_or_else(|| format!("Cloud request to {url} failed ({})", res.status));
+            .unwrap_or_else(|| format!("Cloud request to {url} failed ({status})"));
         return Err(Error::Message(detail));
     }
-    Ok(res.body)
+    Ok(body)
 }
 
 /// Call an endpoint that needs no auth (login, register, refresh). Returns the
@@ -137,16 +143,29 @@ pub async fn authed_request(
     path: &str,
     body: Option<Value>,
 ) -> Result<Value> {
+    authed_request_with_timeout(app, method, path, body, TIMEOUT).await
+}
+
+/// [`authed_request`] with an explicit timeout, for endpoints whose work scales
+/// with the input rather than being a quick lookup — transcribing a multi-hour,
+/// multi-gigabyte recording runs far past the default three minutes.
+pub async fn authed_request_with_timeout(
+    app: &tauri::AppHandle,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+    timeout: Duration,
+) -> Result<Value> {
     let session = load_session(app)
         .await?
         .ok_or_else(|| Error::Message("Not signed in to the cloud.".into()))?;
     let url = join(&base_url(app).await?, path);
 
-    let first = run_call(method, &url, Some(session.access_token), body.clone(), TIMEOUT).await?;
+    let first = run_call(method, &url, Some(session.access_token), body.clone(), timeout).await?;
     let res = if first.status == 401 {
         // Access tokens live only ~5 min — refresh once, then retry.
         let access = refresh(app).await?;
-        run_call(method, &url, Some(access), body, TIMEOUT).await?
+        run_call(method, &url, Some(access), body, timeout).await?
     } else {
         first
     };
@@ -156,7 +175,10 @@ pub async fn authed_request(
 /// Exchange the stored refresh token for a fresh access token, persist the new
 /// session, and return the new access token. Maps any failure to a "sign in
 /// again" message so the UI can prompt re-auth.
-async fn refresh(app: &tauri::AppHandle) -> Result<String> {
+///
+/// `pub(crate)` because a long tus upload can outlive an access token and must
+/// refresh mid-transfer, between chunks (see [`crate::commands::tus_upload`]).
+pub(crate) async fn refresh(app: &tauri::AppHandle) -> Result<String> {
     let session = load_session(app)
         .await?
         .filter(|s| !s.refresh_token.is_empty())
@@ -177,6 +199,12 @@ async fn refresh(app: &tauri::AppHandle) -> Result<String> {
 
 /// POST a single file to `path` as multipart/form-data with the stored access
 /// token, refreshing once on 401. Returns the unwrapped `data` payload.
+///
+/// **Small payloads only.** The body is buffered whole (twice: `bytes`, then the
+/// assembled multipart `Vec`), so this is for the few-second audio clips live
+/// per-utterance transcription sends. Saved recordings — which can reach
+/// gigabytes — go through the chunked, resumable
+/// [`crate::commands::tus_upload`] path instead.
 pub async fn authed_multipart(
     app: &tauri::AppHandle,
     path: &str,
@@ -207,16 +235,6 @@ pub async fn authed_multipart(
         first
     };
     unwrap_envelope(res, &url)
-}
-
-/// Upload a file to `/uploads/upload-file` as multipart/form-data, returning the
-/// new file's id. Refreshes the access token once on 401.
-pub async fn upload_file(app: &tauri::AppHandle, filename: &str, bytes: Vec<u8>) -> Result<String> {
-    let data = authed_multipart(app, "/uploads/upload-file", filename, bytes, TIMEOUT).await?;
-    data.get("id")
-        .and_then(Value::as_str)
-        .map(String::from)
-        .ok_or_else(|| Error::Message("upload response was missing a file id".into()))
 }
 
 /// Assemble a single-file multipart/form-data body for the `file` field.

@@ -31,6 +31,15 @@ import {
 } from "@/services/transcription";
 import { appModeAtom } from "@/atoms/app-mode-atoms";
 import { Meeting } from "@/services/meetings";
+import {
+  cancelFileUpload,
+  isTerminalStage,
+  onTranscribeStage,
+  onUploadProgress,
+  TranscribeStage,
+  UploadProgress,
+} from "@/services/upload";
+import { TranscribeStatus } from "./transcribe-status";
 
 /** Human-readable file size. */
 function formatSize(bytes: number): string {
@@ -38,6 +47,22 @@ function formatSize(bytes: number): string {
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(0)} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+/** Short label for the transcribe button's tooltip, tracking the live stage. */
+function stageTooltip(stage: TranscribeStage | null): string {
+  switch (stage?.stage) {
+    case "preparing":
+      return "Preparing…";
+    case "uploading":
+      return "Uploading…";
+    case "uploaded":
+      return "Upload complete";
+    case "finalizing":
+      return "Saving transcript…";
+    default:
+      return "Transcribing…";
+  }
 }
 
 /** mm:ss for a duration in seconds, or "—" when unknown. */
@@ -78,9 +103,21 @@ export function RecordingsList({
   const [error, setError] = useState<string | null>(null);
   // The recording currently being transcribed, if any (drives the row spinner).
   const [transcribingId, setTranscribingId] = useState<string | null>(null);
+  // Cloud mode runs upload-then-transcribe, minutes of work with no output. These
+  // two drive the inline status under the row so the user can see which half is
+  // running and how far along the upload is.
+  const [transcribeStage, setTranscribeStage] = useState<TranscribeStage | null>(
+    null,
+  );
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
+    null,
+  );
   // Mirror the in-flight flag and the callback in refs so the global event
   // listeners (subscribed once) read current values without restale closures.
   const transcribingRef = useRef(false);
+  // The transcribe handler awaits a call that outlives its own closure, so it
+  // reads the final stage through a ref rather than a captured value.
+  const transcribeStageRef = useRef<TranscribeStage | null>(null);
   const onTranscriptChangedRef = useRef(onTranscriptChanged);
   useEffect(() => {
     onTranscriptChangedRef.current = onTranscriptChanged;
@@ -146,6 +183,46 @@ export function RecordingsList({
     };
   }, []);
 
+  // Follow the cloud pipeline. Both subscriptions are global and registered once;
+  // the stage payload carries the recordingId, so a stage for some other file
+  // (e.g. the file-picker upload panel) is ignored here.
+  useEffect(() => {
+    let unlistenStage: (() => void) | null = null;
+    let unlistenProgress: (() => void) | null = null;
+    let active = true;
+
+    onTranscribeStage((s) => {
+      if (!s.recordingId) return;
+      transcribeStageRef.current = s;
+      setTranscribeStage(s);
+      if (isTerminalStage(s.stage)) {
+        // Clear the numbers so a later run can't briefly show the last one's.
+        setUploadProgress(null);
+        setTranscribingId(null);
+        if (s.stage === "done") onTranscriptChangedRef.current?.();
+        if (s.stage === "failed") toast.error(s.message || "Transcription failed");
+        // Leave the failure text on screen; clear the rest.
+        if (s.stage !== "failed") setTranscribeStage(null);
+      }
+    }).then((fn) => (active ? (unlistenStage = fn) : fn()));
+
+    onUploadProgress((p) => setUploadProgress(p)).then((fn) =>
+      active ? (unlistenProgress = fn) : fn(),
+    );
+
+    return () => {
+      active = false;
+      unlistenStage?.();
+      unlistenProgress?.();
+    };
+  }, []);
+
+  /** Stop the upload half of the pipeline. Server-side work can't be interrupted. */
+  const handleCancelUpload = useCallback(() => {
+    const uploadId = transcribeStage?.uploadId;
+    if (uploadId) cancelFileUpload(uploadId).catch((e) => toast.error(String(e)));
+  }, [transcribeStage?.uploadId]);
+
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -183,17 +260,26 @@ export function RecordingsList({
       return;
     setError(null);
 
-    // Cloud mode: the WAV is uploaded and transcribed on the server. The call is
-    // synchronous (no live events), so we refresh the transcript once it resolves.
+    // Cloud mode: the WAV is uploaded, then transcribed on the server. Both halves
+    // take minutes, so the `transcribe-stage` listener above drives the inline
+    // status; the terminal stage clears the spinner and refreshes the transcript.
     if (appMode === "cloud") {
       setTranscribingId(rec.id);
+      setUploadProgress(null);
+      setTranscribeStage(null);
       try {
         await transcribeRecording(rec.id);
-        onTranscriptChangedRef.current?.();
-        toast.success("Transcribed.");
+        // A cancel resolves normally, so only claim success if it really ran.
+        if (transcribeStageRef.current?.stage !== "cancelled") {
+          toast.success("Transcribed.");
+        }
       } catch (e) {
+        // The "failed" stage already showed the reason inline and toasted it.
         setError(typeof e === "string" ? e : "Failed to transcribe recording");
       } finally {
+        // The terminal stage normally clears this; do it here too so a dropped
+        // event can't leave the row spinning forever. The command having
+        // resolved means the pipeline is over either way.
         setTranscribingId(null);
       }
       return;
@@ -319,7 +405,11 @@ export function RecordingsList({
 
                   <Tooltip
                     title={
-                      transcribingId === rec.id ? "Transcribing…" : "Transcribe"
+                      transcribingId === rec.id
+                        ? // Name the actual stage: "Transcribing" is wrong while
+                          // the file is still uploading, which is half the wait.
+                          stageTooltip(transcribeStage)
+                        : "Transcribe"
                     }
                   >
                     <span>
@@ -356,6 +446,18 @@ export function RecordingsList({
                     </span>
                   </Tooltip>
                 </div>
+
+                {/* Upload → transcribe narration, in the same expanding region
+                    the audio player uses, so it reads as part of this row. */}
+                {transcribeStage?.recordingId === rec.id && (
+                  <div className="animate-fade-in">
+                    <TranscribeStatus
+                      stage={transcribeStage}
+                      progress={uploadProgress}
+                      onCancel={handleCancelUpload}
+                    />
+                  </div>
+                )}
 
                 {isPlaying && (
                   <audio

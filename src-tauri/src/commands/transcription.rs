@@ -15,6 +15,7 @@ use tauri::{Emitter, State};
 
 use crate::cloud::{self, AppMode};
 use crate::commands::microphone::RecordingState;
+use crate::commands::tus_upload::{self, emit_stage, stage, UploadOutcome};
 use crate::commands::recordings::{parse_stamp, wav_duration_secs};
 use crate::db::pool;
 use crate::diarize::models::{self, ModelPaths};
@@ -238,6 +239,112 @@ pub async fn rename_speaker(
     Ok(())
 }
 
+/// How the cloud pipeline ended, so the caller can emit the right closing stage.
+enum CloudTranscribe {
+    Done { file_id: String },
+    /// The user cancelled the upload before it finished.
+    Cancelled,
+}
+
+/// The cloud-mode body of [`transcribe_recording`]: upload the WAV (unless it is
+/// already on the backend), transcribe it server-side, then reconcile local
+/// bookkeeping. Split out from the command so its many `?`s share a single
+/// `failed` stage emission at the call site.
+///
+/// Emits `uploading` / `uploaded` / `transcribing` / `finalizing` as it goes.
+#[allow(clippy::too_many_arguments)]
+async fn cloud_transcribe(
+    app: &tauri::AppHandle,
+    pool: &Pool<Sqlite>,
+    recording_id: &str,
+    meeting_id: &str,
+    path: &str,
+    file_name: &str,
+    existing_file_id: Option<String>,
+    existing_recording_id: Option<String>,
+) -> Result<CloudTranscribe> {
+    // Upload once; reuse the backend file id on re-transcribe. When it's already
+    // cached there is no transfer at all, so no `uploading` stage is emitted and
+    // the UI goes straight to `transcribing` rather than showing a stuck 0% bar.
+    let file_id = match existing_file_id.filter(|s| !s.is_empty()) {
+        Some(id) => id,
+        None => {
+            // Announce the upload id up front so the UI can follow this upload's
+            // `upload-progress` stream and cancel it.
+            emit_stage(
+                app,
+                stage::UPLOADING,
+                Some(recording_id),
+                file_name,
+                Some(tus_upload::upload_id_of(path)),
+                None,
+                None,
+            );
+            match cloud::transcription::upload(app, path).await? {
+                UploadOutcome::Completed { file, .. } => {
+                    emit_stage(
+                        app,
+                        stage::UPLOADED,
+                        Some(recording_id),
+                        file_name,
+                        None,
+                        Some(file.id.clone()),
+                        None,
+                    );
+                    file.id
+                }
+                UploadOutcome::Cancelled { .. } => return Ok(CloudTranscribe::Cancelled),
+                // Nothing drives the pause flag on this path, but treat it the
+                // same as a cancel rather than pretending the upload finished.
+                UploadOutcome::Paused { .. } => return Ok(CloudTranscribe::Cancelled),
+            }
+        }
+    };
+
+    // Transcribe first. Some backends create the MeetingRecording row as part of
+    // transcription; others don't. We reconcile afterwards so exactly one row
+    // exists either way (never a duplicate).
+    emit_stage(app, stage::TRANSCRIBING, Some(recording_id), file_name, None, None, None);
+    cloud::transcription::transcribe(app, meeting_id, &file_id).await?;
+
+    emit_stage(app, stage::FINALIZING, Some(recording_id), file_name, None, None, None);
+
+    // The backend transcript is now authoritative for this recording, so drop
+    // the provisional lines live transcription wrote locally. Only after a
+    // successful transcribe: on failure they're the only transcript there is.
+    sqlx::query("DELETE FROM transcripts WHERE recording_id = $1 AND provisional = 1")
+        .bind(recording_id)
+        .execute(pool)
+        .await?;
+
+    // Producing a fresh transcript un-hides one the user had cleared, so the new
+    // result actually shows. Best-effort — the transcript is already saved.
+    let _ = cloud::transcription::set_cleared(app, meeting_id, false).await;
+
+    // Register the recording once (best-effort — the transcript is already
+    // saved, so bookkeeping must not fail the command).
+    let cloud_recording_id = match existing_recording_id.filter(|s| !s.is_empty()) {
+        Some(id) => Some(id),
+        None => register_cloud_recording(app, meeting_id, &file_id, file_name, path).await,
+    };
+
+    // Cache the ids so a re-transcribe skips the re-upload/re-register. The
+    // recording id is only overwritten when we actually have one (COALESCE).
+    sqlx::query(
+        "UPDATE recordings
+         SET cloud_file_id = $1,
+             cloud_recording_id = COALESCE($2, cloud_recording_id)
+         WHERE id = $3",
+    )
+    .bind(&file_id)
+    .bind(&cloud_recording_id)
+    .bind(recording_id)
+    .execute(pool)
+    .await?;
+
+    Ok(CloudTranscribe::Done { file_id })
+}
+
 /// Ensure a cloud `MeetingRecording` exists for a just-transcribed file and return
 /// its id. Best-effort: any backend error yields `None` (the transcript is already
 /// saved, so recording bookkeeping must not fail the transcribe command). Adopts a
@@ -323,50 +430,56 @@ pub async fn transcribe_recording(
         let existing_file_id: Option<String> = row.get("cloud_file_id");
         let existing_recording_id: Option<String> = row.get("cloud_recording_id");
 
-        // Upload once; reuse the backend file id on re-transcribe.
-        let file_id = match existing_file_id.filter(|s| !s.is_empty()) {
-            Some(id) => id,
-            None => cloud::transcription::upload(&app, &path).await?,
-        };
+        // Narrate the pipeline. Upload-then-transcribe is minutes of silence from
+        // the outside, so the terminal stage is emitted here in one place and the
+        // per-step ones inside the helper.
+        emit_stage(&app, stage::PREPARING, Some(&recording_id), &file_name, None, None, None);
 
-        // Transcribe first. Some backends create the MeetingRecording row as part of
-        // transcription; others don't. We reconcile afterwards so exactly one row
-        // exists either way (never a duplicate).
-        cloud::transcription::transcribe(&app, &meeting_id, &file_id).await?;
-
-        // The backend transcript is now authoritative for this recording, so drop
-        // the provisional lines live transcription wrote locally. Only after a
-        // successful transcribe: on failure they're the only transcript there is.
-        sqlx::query("DELETE FROM transcripts WHERE recording_id = $1 AND provisional = 1")
-            .bind(&recording_id)
-            .execute(&pool)
-            .await?;
-
-        // Producing a fresh transcript un-hides one the user had cleared, so the new
-        // result actually shows. Best-effort — the transcript is already saved.
-        let _ = cloud::transcription::set_cleared(&app, &meeting_id, false).await;
-
-        // Register the recording once (best-effort — the transcript is already
-        // saved, so bookkeeping must not fail the command).
-        let cloud_recording_id = match existing_recording_id.filter(|s| !s.is_empty()) {
-            Some(id) => Some(id),
-            None => register_cloud_recording(&app, &meeting_id, &file_id, &file_name, &path).await,
-        };
-
-        // Cache the ids so a re-transcribe skips the re-upload/re-register. The
-        // recording id is only overwritten when we actually have one (COALESCE).
-        sqlx::query(
-            "UPDATE recordings
-             SET cloud_file_id = $1,
-                 cloud_recording_id = COALESCE($2, cloud_recording_id)
-             WHERE id = $3",
+        let outcome = cloud_transcribe(
+            &app,
+            &pool,
+            &recording_id,
+            &meeting_id,
+            &path,
+            &file_name,
+            existing_file_id,
+            existing_recording_id,
         )
-        .bind(&file_id)
-        .bind(&cloud_recording_id)
-        .bind(&recording_id)
-        .execute(&pool)
-        .await?;
+        .await;
 
+        match &outcome {
+            Ok(CloudTranscribe::Done { file_id }) => emit_stage(
+                &app,
+                stage::DONE,
+                Some(&recording_id),
+                &file_name,
+                None,
+                Some(file_id.clone()),
+                None,
+            ),
+            // The user stopped the upload on purpose. Not a failure; the command
+            // returns Ok so the frontend shows no error.
+            Ok(CloudTranscribe::Cancelled) => emit_stage(
+                &app,
+                stage::CANCELLED,
+                Some(&recording_id),
+                &file_name,
+                None,
+                None,
+                None,
+            ),
+            Err(e) => emit_stage(
+                &app,
+                stage::FAILED,
+                Some(&recording_id),
+                &file_name,
+                None,
+                None,
+                Some(e.to_string()),
+            ),
+        }
+
+        outcome?;
         return Ok(());
     }
 
