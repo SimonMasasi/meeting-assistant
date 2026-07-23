@@ -11,11 +11,12 @@
 //! meeting's `clientMeta` blob (the `speaker_names` map) and applied over the
 //! backend transcript here — see [`get_transcript`] and [`rename_speaker`].
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tauri::Emitter;
 
 use crate::cloud::{client, meetings};
-use crate::commands::tus_upload::UploadOutcome;
+use crate::commands::tus_upload::{TranscribeProgress, UploadOutcome};
 use crate::diarize::pipeline::TranscriptSegment;
 use crate::error::{Error, Result};
 
@@ -119,26 +120,206 @@ pub async fn list_recordings(
     Ok(serde_json::from_value(data).unwrap_or_default())
 }
 
-/// How long to wait on `/inference/transcribe`. The backend transcribes and
+/// How long to wait on the transcription endpoints. The backend transcribes and
 /// diarizes synchronously, which takes minutes for a large file — well past the
 /// default request timeout.
 const TRANSCRIBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60 * 60);
 
-/// Run cloud transcription for an already-uploaded file. The transcript is
-/// persisted server-side and then read back via [`get_transcript`].
-pub async fn transcribe(app: &tauri::AppHandle, meeting_id: &str, file_id: &str) -> Result<()> {
+/// One `segment` event from the streaming endpoint: the stored segment plus its
+/// position in the stream.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamSegmentDto {
+    #[serde(flatten)]
+    segment: SegmentDto,
+    index: i64,
+}
+
+/// One `progress` event. Both positions are absent on backends that report no
+/// partials (Soniox), which the UI renders as indeterminate.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamProgressDto {
+    #[serde(default)]
+    processed_ms: Option<i64>,
+    #[serde(default)]
+    total_ms: Option<i64>,
+}
+
+/// One `status` event: what the server is doing, and which engine is doing it.
+///
+/// This is what lets the UI stop saying "transcribing" during the stages that
+/// aren't — `downloading` and, most importantly, `diarizing`, which runs before
+/// any segment exists and emits no progress whatsoever.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamStatusDto {
+    #[serde(default)]
+    stage: Option<String>,
+    /// "soniox" | "local" | absent.
+    #[serde(default)]
+    backend: Option<String>,
+}
+
+/// The `transcript-reset` payload: the meeting whose panel should drop its lines.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscriptReset {
+    meeting_id: String,
+}
+
+/// Run cloud transcription for an already-uploaded file, pushing each transcript
+/// line to the UI as the server produces it. The transcript is still persisted
+/// server-side and read back authoritatively via [`get_transcript`] once the
+/// caller's pipeline reaches its `done` stage.
+///
+/// Emits `transcript-line` per segment (the same event the on-device pipeline
+/// uses, so the transcript panel renders them with no special casing) and
+/// re-emits the `transcribing` stage with the server's position.
+///
+/// Falls back to the older blocking endpoint when the backend has no streaming
+/// one, so a desktop build stays usable against a self-hosted server that hasn't
+/// been updated.
+pub async fn transcribe(
+    app: &tauri::AppHandle,
+    meeting_id: &str,
+    file_id: &str,
+    recording_id: Option<&str>,
+    file_name: &str,
+) -> Result<()> {
     // `file_id` stays a string end to end: backend ids are 64-bit and would lose
     // precision if they were ever round-tripped through a JS number.
     let body = json!({ "fileId": file_id });
-    client::authed_request_with_timeout(
+
+    // Streamed lines must carry the user's speaker names, exactly as the
+    // read-back applies them. Best-effort: no meeting just means no overrides.
+    let overrides = meetings::get(app, meeting_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|m| m.speaker_names)
+        .unwrap_or_default();
+
+    // Ids must be unique per run: the transcript panel de-duplicates by id, so
+    // re-transcribing in the same session would otherwise have its lines dropped
+    // as ones it has "already seen".
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+
+    let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut sink = StreamSink {
+        app: app.clone(),
+        meeting_id: meeting_id.to_string(),
+        overrides,
+        nonce,
+        reset_sent: false,
+        progress: TranscribeProgress::new(recording_id, file_name),
+        completed: completed.clone(),
+    };
+
+    let result = client::authed_sse(
         app,
-        "POST",
-        &format!("/inference/transcribe/{meeting_id}"),
-        Some(body),
+        &format!("/inference/transcribe-stream/{meeting_id}"),
+        Some(body.clone()),
         TRANSCRIBE_TIMEOUT,
+        move |name, data| sink.handle(name, data),
     )
-    .await?;
-    Ok(())
+    .await;
+
+    match result {
+        Err(Error::EndpointUnsupported) => {
+            eprintln!("backend has no streaming transcription; using the blocking endpoint");
+            client::authed_request_with_timeout(
+                app,
+                "POST",
+                &format!("/inference/transcribe/{meeting_id}"),
+                Some(body),
+                TRANSCRIBE_TIMEOUT,
+            )
+            .await?;
+            Ok(())
+        }
+        Err(e) => Err(e),
+        // The response headers are sent before the work starts, so a failure
+        // cannot arrive as a status code. A stream that stops without saying it
+        // finished did not finish.
+        Ok(()) if !completed.load(std::sync::atomic::Ordering::Relaxed) => Err(Error::Message(
+            "The transcription stream ended before it finished.".into(),
+        )),
+        Ok(()) => Ok(()),
+    }
+}
+
+/// Turns the backend's stream events into the desktop's own events. Holds the
+/// per-run state the callback needs across calls (the id nonce, the progress
+/// throttle, whether the panel has been reset yet).
+struct StreamSink {
+    app: tauri::AppHandle,
+    meeting_id: String,
+    overrides: std::collections::HashMap<String, String>,
+    nonce: u128,
+    reset_sent: bool,
+    progress: TranscribeProgress,
+    completed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl StreamSink {
+    fn handle(&mut self, name: &str, data: serde_json::Value) -> Result<()> {
+        match name {
+            "segment" => {
+                let dto: StreamSegmentDto = serde_json::from_value(data)?;
+                // The panel is still showing this file's previous transcript;
+                // without clearing it, the old and new lines would both render.
+                // Deliberately on the first line rather than at stream open, so a
+                // run that fails before producing anything leaves it intact.
+                if !self.reset_sent {
+                    self.reset_sent = true;
+                    let _ = self.app.emit(
+                        "transcript-reset",
+                        TranscriptReset { meeting_id: self.meeting_id.clone() },
+                    );
+                }
+                let speaker_name = self
+                    .overrides
+                    .get(&dto.segment.speaker_label)
+                    .cloned()
+                    .or(dto.segment.speaker_name);
+                let line = TranscriptSegment {
+                    id: format!("stream-{}-{}", self.nonce, dto.index),
+                    speaker_label: dto.segment.speaker_label,
+                    speaker_name,
+                    start_ms: dto.segment.start_ms,
+                    end_ms: dto.segment.end_ms,
+                    text: dto.segment.text,
+                };
+                let _ = self.app.emit("transcript-line", line);
+            }
+            "progress" => {
+                let dto: StreamProgressDto = serde_json::from_value(data)?;
+                self.progress.emit(&self.app, dto.processed_ms, dto.total_ms);
+            }
+            "error" => {
+                let message = data
+                    .get("message")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("Transcription failed on the server");
+                return Err(Error::Message(message.to_string()));
+            }
+            "status" => {
+                let dto: StreamStatusDto = serde_json::from_value(data)?;
+                self.progress.set_status(&self.app, dto.stage, dto.backend);
+            }
+            "done" => self
+                .completed
+                .store(true, std::sync::atomic::Ordering::Relaxed),
+            // Anything the backend adds later: ignored rather than treated as an
+            // error, so a newer server doesn't break an older client.
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 /// The cloud transcript for a meeting, mapped to the desktop segment shape:

@@ -69,6 +69,16 @@ export type TranscribeStageName =
   | "paused"
   | "failed";
 
+/**
+ * The server's own stages within transcription, from its `status` events.
+ * Only "transcribing" ever reports a position, and only on the local backend.
+ */
+export type ServerStage =
+  | "downloading"
+  | "diarizing"
+  | "transcribing"
+  | "saving";
+
 export interface TranscribeStage {
   stage: TranscribeStageName;
   /** While uploading: matches `UploadProgress.uploadId`, and cancels this upload. */
@@ -80,6 +90,29 @@ export interface TranscribeStage {
   fileId: string | null;
   /** Why it failed, on "failed". */
   message: string | null;
+  /**
+   * What the *server* is doing inside our "transcribing" stage. The outer
+   * `stage` is the desktop pipeline's phase; this is the detail underneath.
+   *
+   * They behave very differently: "diarizing" runs before any segment exists and
+   * emits no progress at all, so it must read as its own indeterminate step
+   * rather than as a "transcribing" bar that cannot move.
+   */
+  serverStage: ServerStage | null;
+  /**
+   * Which engine transcribed ("soniox" | "local"). Soniox's async API exposes no
+   * partials, so it never reports a position — the absence of a progress bar is
+   * a property of the backend, not a stall.
+   */
+  backend: string | null;
+  /**
+   * How far into the audio the server has transcribed, and how long the audio is.
+   * Only on "transcribing", and only when the server's transcription backend
+   * reports a position — Soniox has no partials, so both stay null and the UI
+   * shows an indeterminate bar instead of inventing a number.
+   */
+  processedMs: number | null;
+  totalMs: number | null;
 }
 
 /** Stages the pipeline has finished with — nothing further will arrive. */

@@ -7,6 +7,7 @@ import {
   TranscribeStage,
   UploadProgress,
 } from "@/services/upload";
+import { formatTimestamp } from "@/services/transcription";
 
 /**
  * Narrates the upload → transcribe pipeline for one file.
@@ -34,12 +35,32 @@ export function TranscribeStatus({
   const uploading = stage.stage === "uploading";
   const total = progress?.totalBytes ?? 0;
   const sent = progress?.bytesSent ?? 0;
-  const percent = total > 0 ? Math.min(100, (sent / total) * 100) : 0;
 
-  // Only the upload knows how far along it is. Server-side transcription is a
-  // single blocking call with no progress endpoint, so anything else shows an
+  // Two things can report real progress: the upload (bytes) and, while the server
+  // transcribes, its position in the audio. The latter only arrives from backends
+  // that produce partials — Soniox doesn't, so that case still gets an
   // indeterminate bar rather than a number invented to look reassuring.
-  const determinate = uploading && total > 0;
+  //
+  // The server's own sub-stage gates this. Only its "transcribing" step reports a
+  // position at all: "downloading", "diarizing" and "saving" emit none, and
+  // diarizing in particular can run for a long time before the first segment
+  // exists. Showing a bar frozen at the last position through all of that reads
+  // as a hang, so those stages are explicitly indeterminate.
+  const audioTotal = stage.totalMs ?? 0;
+  const audioDone = stage.processedMs ?? 0;
+  const serverIsTranscribing =
+    stage.serverStage == null || stage.serverStage === "transcribing";
+  const transcribingWithPosition =
+    stage.stage === "transcribing" && serverIsTranscribing && audioTotal > 0;
+
+  const determinate = uploading ? total > 0 : transcribingWithPosition;
+  const percent = uploading
+    ? total > 0
+      ? Math.min(100, (sent / total) * 100)
+      : 0
+    : transcribingWithPosition
+      ? Math.min(100, (audioDone / audioTotal) * 100)
+      : 0;
 
   if (stage.stage === "done" || stage.stage === "cancelled") return null;
 
@@ -107,12 +128,43 @@ function primaryLabel(
     case "uploaded":
       return "Upload complete";
     case "transcribing":
-      // Deliberately explicit about the wait: this step regularly runs for
-      // several minutes with nothing to show, and silence reads as a hang.
-      return "Transcribing on the server… this can take several minutes";
+      return serverLabel(stage);
     case "finalizing":
       return "Saving transcript…";
     default:
       return "Working…";
+  }
+}
+
+/**
+ * What the server is doing, once it has told us. Each sub-stage gets its own
+ * wording because they are genuinely different waits — naming them all
+ * "transcribing" is how a long diarization pass ends up looking like a freeze.
+ */
+function serverLabel(stage: TranscribeStage): string {
+  switch (stage.serverStage) {
+    case "downloading":
+      return "Fetching the audio on the server…";
+    case "diarizing":
+      // No progress events arrive during this step at all, and it can run for a
+      // large share of the total time. Say so, so the silence is expected.
+      return "Analysing speakers… no progress is reported during this step";
+    case "saving":
+      return "Saving transcript…";
+    case "transcribing":
+    default:
+      // With a position, say where it is — lines are streaming into the
+      // transcript panel meanwhile, so the wait is no longer blind.
+      if (stage.totalMs && stage.totalMs > 0) {
+        return `Transcribing · ${formatTimestamp(
+          stage.processedMs ?? 0,
+        )} of ${formatTimestamp(stage.totalMs)}`;
+      }
+      // No position: either the run just started, or this backend has none.
+      // Soniox returns everything at the end, so name it rather than let the
+      // missing bar read as a stall.
+      return stage.backend === "soniox"
+        ? "Transcribing on the server… Soniox reports no progress until it finishes"
+        : "Transcribing on the server… this can take several minutes";
   }
 }

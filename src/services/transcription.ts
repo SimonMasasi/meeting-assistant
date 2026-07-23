@@ -99,6 +99,20 @@ export function onTranscriptLine(
   return listen<TranscriptSegment>("transcript-line", (e) => cb(e.payload));
 }
 
+/**
+ * A meeting's transcript is being replaced, so drop the lines currently on
+ * screen. Emitted just before cloud transcription streams a recording's new
+ * lines in: without it the replaced ones would still be there, and the panel
+ * would show both.
+ */
+export function onTranscriptReset(
+  cb: (meetingId: string) => void,
+): Promise<UnlistenFn> {
+  return listen<{ meetingId: string }>("transcript-reset", (e) =>
+    cb(e.payload.meetingId),
+  );
+}
+
 /** Model-download / pipeline progress updates. */
 export function onTranscriptionProgress(
   cb: (p: TranscriptionProgress) => void,

@@ -111,6 +111,10 @@ export function UploadPanel({
           fileName: row.fileName,
           fileId: null,
           message: null,
+          processedMs: null,
+          totalMs: null,
+          serverStage: null,
+          backend: null,
         });
       })
       .catch(() => {});

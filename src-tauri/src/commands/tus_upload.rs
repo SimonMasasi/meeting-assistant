@@ -157,6 +157,25 @@ pub struct TranscribeStage {
     pub file_id: Option<String>,
     /// Why it failed, on `failed`.
     pub message: Option<String>,
+    /// How far into the audio the server has transcribed, and how long the audio
+    /// is. Only set on `transcribing`, and only when the server's backend reports
+    /// a position at all — Soniox returns no partials, so it stays `None` and the
+    /// UI shows an indeterminate bar rather than a number invented to reassure.
+    pub processed_ms: Option<i64>,
+    pub total_ms: Option<i64>,
+    /// What the *server* is doing inside our `transcribing` stage:
+    /// `downloading` | `diarizing` | `transcribing` | `saving`.
+    ///
+    /// The outer `stage` is the desktop pipeline's phase; this is the detail
+    /// underneath it. It matters because these sub-stages behave very differently:
+    /// `diarizing` runs before a single segment exists, emits no progress at all,
+    /// and can eat a large share of the wall clock. Reporting it as "transcribing"
+    /// would leave the user watching a bar that cannot move.
+    pub server_stage: Option<String>,
+    /// Which engine the server used (`soniox` | `local`). Soniox's async API has
+    /// no partials, so it never reports a position — worth saying out loud rather
+    /// than leaving the absence of progress looking like a stall.
+    pub backend: Option<String>,
 }
 
 /// The `stage` values a [`TranscribeStage`] can carry. String-typed rather than
@@ -202,8 +221,91 @@ pub fn emit_stage(
             file_name: file_name.to_string(),
             file_id,
             message,
+            processed_ms: None,
+            total_ms: None,
+            server_stage: None,
+            backend: None,
         },
     );
+}
+
+/// Throttles the `transcribing` stage's position updates to ~4/sec, matching
+/// [`Progress`]. The server streams a position per transcript line, which on a
+/// long recording is hundreds of events — far more than the UI can use.
+pub struct TranscribeProgress {
+    recording_id: Option<String>,
+    file_name: String,
+    last_emit: Instant,
+    /// The server's current sub-stage and engine, carried on every emission so a
+    /// position update can't blank out the label a `status` event just set.
+    server_stage: Option<String>,
+    backend: Option<String>,
+}
+
+impl TranscribeProgress {
+    pub fn new(recording_id: Option<&str>, file_name: &str) -> Self {
+        Self {
+            recording_id: recording_id.map(String::from),
+            file_name: file_name.to_string(),
+            // Back-dated so the first update goes out immediately.
+            last_emit: Instant::now()
+                .checked_sub(PROGRESS_INTERVAL)
+                .unwrap_or_else(Instant::now),
+            server_stage: None,
+            backend: None,
+        }
+    }
+
+    /// Record the server's sub-stage and emit it right away.
+    ///
+    /// Deliberately not throttled: status changes are rare, and each one is the
+    /// only signal the user gets that something moved — especially entering
+    /// `diarizing`, which then produces nothing at all for a long while.
+    pub fn set_status(
+        &mut self,
+        app: &tauri::AppHandle,
+        server_stage: Option<String>,
+        backend: Option<String>,
+    ) {
+        self.server_stage = server_stage;
+        if backend.is_some() {
+            self.backend = backend;
+        }
+        self.send(app, None, None);
+    }
+
+    /// Re-emit the `transcribing` stage carrying the current position, unless we
+    /// emitted very recently. Best-effort, like [`emit_stage`].
+    pub fn emit(&mut self, app: &tauri::AppHandle, processed_ms: Option<i64>, total_ms: Option<i64>) {
+        if self.last_emit.elapsed() < PROGRESS_INTERVAL {
+            return;
+        }
+        self.send(app, processed_ms, total_ms);
+    }
+
+    fn send(
+        &mut self,
+        app: &tauri::AppHandle,
+        processed_ms: Option<i64>,
+        total_ms: Option<i64>,
+    ) {
+        let _ = app.emit(
+            "transcribe-stage",
+            TranscribeStage {
+                stage: stage::TRANSCRIBING,
+                upload_id: None,
+                recording_id: self.recording_id.clone(),
+                file_name: self.file_name.clone(),
+                file_id: None,
+                message: None,
+                processed_ms,
+                total_ms,
+                server_stage: self.server_stage.clone(),
+                backend: self.backend.clone(),
+            },
+        );
+        self.last_emit = Instant::now();
+    }
 }
 
 /// A stored, still-resumable upload, for the "resume after restart" UI.
@@ -818,7 +920,9 @@ pub async fn transcribe_uploaded_file(
     let name = file_name.unwrap_or_default();
     emit_stage(&app, stage::TRANSCRIBING, None, &name, None, Some(file_id.clone()), None);
 
-    if let Err(e) = crate::cloud::transcription::transcribe(&app, &meeting_id, &file_id).await {
+    if let Err(e) =
+        crate::cloud::transcription::transcribe(&app, &meeting_id, &file_id, None, &name).await
+    {
         emit_stage(&app, stage::FAILED, None, &name, None, None, Some(e.to_string()));
         return Err(e);
     }

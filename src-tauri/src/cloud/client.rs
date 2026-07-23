@@ -5,6 +5,7 @@
 //! unwrapped `data` payload back; the response envelope and a one-shot
 //! token-refresh on `401` are handled here.
 
+use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
 use serde_json::Value;
@@ -172,6 +173,172 @@ pub async fn authed_request_with_timeout(
     unwrap_envelope(res, &url)
 }
 
+/// How a streaming call ended. `Unauthorized` is separated out because the retry
+/// needs a fresh token, which only the async side can obtain.
+enum SseFail {
+    Unauthorized,
+    Failed(Error),
+}
+
+/// Parse one server-sent event frame — the lines between two blank lines — into
+/// its event name and JSON payload.
+///
+/// Returns `None` for anything that isn't a complete named JSON event: comment
+/// lines (`: keep-alive`), frames with no `data:`, and unparseable payloads are
+/// all skipped rather than failing the stream.
+fn parse_sse_frame(frame: &str) -> Option<(String, Value)> {
+    let mut name: Option<String> = None;
+    let mut data = String::new();
+    for line in frame.lines() {
+        if let Some(value) = line.strip_prefix("event:") {
+            name = Some(value.trim().to_string());
+        } else if let Some(value) = line.strip_prefix("data:") {
+            // Multi-line payloads concatenate with newlines, per the SSE spec.
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(value.strip_prefix(' ').unwrap_or(value));
+        }
+    }
+    Some((name?, serde_json::from_str(&data).ok()?))
+}
+
+/// One blocking SSE round-trip: POST, then read the response body as it arrives,
+/// handing each complete event to `on_event`. Runs inside `spawn_blocking`.
+///
+/// Unlike [`http_call`] the body is never buffered — `into_reader` streams, so
+/// events surface as the server produces them, which is the entire point.
+fn sse_call(
+    url: &str,
+    bearer: Option<String>,
+    body: Option<Value>,
+    timeout: Duration,
+    on_event: &mut dyn FnMut(&str, Value) -> Result<()>,
+) -> std::result::Result<(), SseFail> {
+    let mut req = ureq::post(url)
+        .timeout(timeout)
+        .set("content-type", "application/json")
+        .set("accept", "text/event-stream");
+    if let Some(token) = bearer.as_deref().filter(|t| !t.is_empty()) {
+        req = req.set("authorization", &format!("Bearer {token}"));
+    }
+    let payload = match &body {
+        Some(b) => serde_json::to_vec(b).map_err(|e| SseFail::Failed(e.into()))?,
+        None => Vec::new(),
+    };
+
+    let resp = match req.send_bytes(&payload) {
+        Ok(resp) => resp,
+        Err(ureq::Error::Status(401, _)) => return Err(SseFail::Unauthorized),
+        // The backend predates the streaming endpoint; the caller falls back.
+        Err(ureq::Error::Status(404, _)) => return Err(SseFail::Failed(Error::EndpointUnsupported)),
+        Err(ureq::Error::Status(code, resp)) => {
+            let body = parse_body(resp);
+            let err = unwrap_envelope_parts(code, body, url)
+                .err()
+                .unwrap_or_else(|| Error::Message(format!("Cloud request to {url} failed ({code})")));
+            return Err(SseFail::Failed(err));
+        }
+        Err(e) => {
+            return Err(SseFail::Failed(Error::Message(format!(
+                "Cannot reach the cloud backend at {url}: {e}"
+            ))))
+        }
+    };
+
+    let mut reader = BufReader::new(resp.into_reader());
+    let mut frame = String::new();
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let read = reader
+            .read_line(&mut line)
+            .map_err(|e| SseFail::Failed(e.into()))?;
+        // A blank line terminates a frame; EOF flushes whatever is pending.
+        if read == 0 || line.trim().is_empty() {
+            if let Some((name, data)) = parse_sse_frame(&frame) {
+                on_event(&name, data).map_err(SseFail::Failed)?;
+            }
+            frame.clear();
+            if read == 0 {
+                return Ok(());
+            }
+            continue;
+        }
+        frame.push_str(&line);
+    }
+}
+
+/// Run one streaming call on a blocking thread. The callback is handed back so a
+/// `401` retry can reuse it — it owns state (emitted counts, throttles) that must
+/// survive the second attempt.
+async fn run_sse<F>(
+    url: &str,
+    bearer: Option<String>,
+    body: Option<Value>,
+    timeout: Duration,
+    mut on_event: F,
+) -> Result<(F, std::result::Result<(), SseFail>)>
+where
+    F: FnMut(&str, Value) -> Result<()> + Send + 'static,
+{
+    let url = url.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        let outcome = sse_call(&url, bearer, body, timeout, &mut on_event);
+        (on_event, outcome)
+    })
+    .await
+    .map_err(|e| Error::Message(format!("cloud stream task failed: {e}")))
+}
+
+/// Call a protected endpoint that responds with `text/event-stream`, invoking
+/// `on_event` for each event as it arrives. Refreshes once on `401` and retries,
+/// like [`authed_request`].
+///
+/// The callback's error ends the stream and is returned — that is how a terminal
+/// `error` event from the server becomes this call's failure. Note that an
+/// endpoint which has already sent its headers cannot report a failure with a
+/// status code, so callers must treat a stream that ends without its own
+/// completion event as failed.
+pub async fn authed_sse<F>(
+    app: &tauri::AppHandle,
+    path: &str,
+    body: Option<Value>,
+    timeout: Duration,
+    on_event: F,
+) -> Result<()>
+where
+    F: FnMut(&str, Value) -> Result<()> + Send + 'static,
+{
+    let session = load_session(app)
+        .await?
+        .ok_or_else(|| Error::Message("Not signed in to the cloud.".into()))?;
+    let url = join(&base_url(app).await?, path);
+
+    let (on_event, first) = run_sse(
+        &url,
+        Some(session.access_token),
+        body.clone(),
+        timeout,
+        on_event,
+    )
+    .await?;
+    let outcome = match first {
+        Err(SseFail::Unauthorized) => {
+            let access = refresh(app).await?;
+            run_sse(&url, Some(access), body, timeout, on_event).await?.1
+        }
+        other => other,
+    };
+    match outcome {
+        Ok(()) => Ok(()),
+        Err(SseFail::Failed(e)) => Err(e),
+        Err(SseFail::Unauthorized) => Err(Error::Message(
+            "Session expired. Please sign in again.".into(),
+        )),
+    }
+}
+
 /// Exchange the stored refresh token for a fresh access token, persist the new
 /// session, and return the new access token. Maps any failure to a "sign in
 /// again" message so the UI can prompt re-auth.
@@ -297,5 +464,44 @@ pub async fn ping(app: &tauri::AppHandle) -> Result<bool> {
     match run_call("GET", &url, None, None, TIMEOUT).await {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_sse_frame;
+
+    #[test]
+    fn frame_yields_name_and_payload() {
+        let (name, data) =
+            parse_sse_frame("event: segment\ndata: {\"index\":0,\"text\":\"Hello.\"}\n").unwrap();
+        assert_eq!(name, "segment");
+        assert_eq!(data["index"], 0);
+        assert_eq!(data["text"], "Hello.");
+    }
+
+    #[test]
+    fn field_value_space_is_optional() {
+        let with = parse_sse_frame("event: done\ndata: {\"segmentCount\":2}\n").unwrap();
+        let without = parse_sse_frame("event:done\ndata:{\"segmentCount\":2}\n").unwrap();
+        assert_eq!(with.0, without.0);
+        assert_eq!(with.1, without.1);
+    }
+
+    #[test]
+    fn incomplete_or_unnamed_frames_are_skipped() {
+        // Keep-alive comment, a bare payload with no event name, a named frame
+        // with no data, and an unparseable payload.
+        assert!(parse_sse_frame(": keep-alive\n").is_none());
+        assert!(parse_sse_frame("data: {\"a\":1}\n").is_none());
+        assert!(parse_sse_frame("event: progress\n").is_none());
+        assert!(parse_sse_frame("event: progress\ndata: not json\n").is_none());
+    }
+
+    #[test]
+    fn multi_line_data_is_joined_with_newlines() {
+        let (_, data) = parse_sse_frame("event: error\ndata: {\"message\":\n\ndata: \"boom\"}\n")
+            .unwrap();
+        assert_eq!(data["message"], "boom");
     }
 }

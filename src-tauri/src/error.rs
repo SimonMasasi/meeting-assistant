@@ -44,6 +44,13 @@ pub enum Error {
     #[error("the upload could not be resumed and must be started again")]
     UploadRestartNeeded,
 
+    /// Internal control signal: the backend does not have the endpoint that was
+    /// called (404), so the caller can fall back to an older one. Used by cloud
+    /// transcription, whose streaming endpoint is newer than the blocking one it
+    /// replaces; never surfaced to the frontend.
+    #[error("this backend does not support that endpoint")]
+    EndpointUnsupported,
+
     /// Domain errors that don't originate from an underlying library error,
     /// e.g. validation failures.
     #[error("{0}")]

@@ -305,7 +305,10 @@ async fn cloud_transcribe(
     // transcription; others don't. We reconcile afterwards so exactly one row
     // exists either way (never a duplicate).
     emit_stage(app, stage::TRANSCRIBING, Some(recording_id), file_name, None, None, None);
-    cloud::transcription::transcribe(app, meeting_id, &file_id).await?;
+    // Streams the transcript back line by line, re-emitting this stage with the
+    // server's position as it goes.
+    cloud::transcription::transcribe(app, meeting_id, &file_id, Some(recording_id), file_name)
+        .await?;
 
     emit_stage(app, stage::FINALIZING, Some(recording_id), file_name, None, None, None);
 

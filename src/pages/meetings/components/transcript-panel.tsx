@@ -10,6 +10,7 @@ import {
   clearTranscript,
   getTranscript,
   onTranscriptLine,
+  onTranscriptReset,
   renameSpeaker,
   segmentToLine,
   TranscriptSegment,
@@ -49,22 +50,32 @@ export function TranscriptPanel({
     load();
   }, [load, refreshSignal]);
 
-  // Append lines live as the meeting is recorded. The event is global, so this
-  // works regardless of which view started the recording.
+  // Append lines live as the meeting is recorded, and as cloud transcription
+  // streams a saved recording back. The events are global, so this works
+  // regardless of which view started the work; the reset arrives first when a
+  // transcript is being replaced, so the old lines don't linger beside the new.
   useEffect(() => {
-    let unlisten: (() => void) | null = null;
+    const unlisteners: (() => void)[] = [];
     let active = true;
-    onTranscriptLine((line) => {
-      setSegments((prev) =>
-        prev.some((s) => s.id === line.id) ? prev : [...prev, line],
-      );
-    }).then((fn) => {
-      if (active) unlisten = fn;
-      else fn();
-    });
+    const track = (p: Promise<() => void>) =>
+      p.then((fn) => (active ? unlisteners.push(fn) : fn()));
+
+    track(
+      onTranscriptLine((line) => {
+        setSegments((prev) =>
+          prev.some((s) => s.id === line.id) ? prev : [...prev, line],
+        );
+      }),
+    );
+    track(
+      onTranscriptReset((meetingId) => {
+        if (meetingId === meeting.id) setSegments([]);
+      }),
+    );
+
     return () => {
       active = false;
-      if (unlisten) unlisten();
+      unlisteners.forEach((fn) => fn());
     };
   }, [meeting.id]);
 
